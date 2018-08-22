@@ -38,10 +38,11 @@ Requirements:
 - Connection to Pubtrans SQL Server database
   - TODO Define host and credentials in secrets
 
-Launch Docker container:
+Launch Docker container with
 
-```docker-compose up pulsar-pubtrans-connect-arrival```   
+```docker-compose -f compose-config-file.yml up <service-name>```   
 
+See [the documentation-project](https://gitlab.hsl.fi/transitdata/transitdata-doc) for details
 
 ## TODO
 
