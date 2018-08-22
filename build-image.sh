@@ -1,2 +1,2 @@
 #!/bin/bash
-docker build -t poc-pulsar-pubtrans-connect .
+docker build -t transitdata-pubtrans-source .

@@ -6,6 +6,8 @@ A proof of concept for following functionalities
 - Connect to a local Pulsar cluster
 - Produce data to pulsar topics
 
+More system-level documentation can be found in [this project](https://gitlab.hsl.fi/transitdata/transitdata-doc).
+
 ## Building
 
 ### Dependencies

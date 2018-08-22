@@ -1,4 +1,4 @@
-#This is a two-stage build image for a java project. 
+#This is a two-stage build image for a java project.
 #The actual build step happens in the maven container, and the final jar is
 #deployed to a more lightweight container. Maven should not download all the
 #dependencies if pom.xml is not modified. Modifying only the source code should
@@ -21,12 +21,12 @@ RUN mvn -f /usr/src/app/pom.xml dependency:resolve-plugins dependency:resolve cl
 COPY src /usr/src/app/src
 RUN mvn -f /usr/src/app/pom.xml clean package
 
-#The container that actually runs our application. 
+#The container that actually runs our application.
 #TODO: switch to Alpine when it becomes available
 FROM openjdk:8-jre-slim
 
 #This container can access the build artifacts inside the BUILD container.
 #Everything that is not copied is discarded
-COPY --from=BUILD /usr/src/app/target/pulsar-pubtrans-connect-jar-with-dependencies.jar /usr/app/pulsar-pubtrans-connect.jar
+COPY --from=BUILD /usr/src/app/target/transitdata-pubtrans-source-jar-with-dependencies.jar /usr/app/transitdata-pubtrans-source.jar
 
-ENTRYPOINT ["java", "-jar", "/usr/app/pulsar-pubtrans-connect.jar"]
+ENTRYPOINT ["java", "-jar", "/usr/app/transitdata-pubtrans-source.jar"]
