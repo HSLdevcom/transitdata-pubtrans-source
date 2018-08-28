@@ -1,5 +1,6 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
+import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -64,8 +65,10 @@ public class DepartureHandler extends PubtransTableHandler {
             TypedMessageBuilder<byte[]> msgBuilder = producer.newMessage()
                     .key(resultSet.getString(2) + resultSet.getString(4))
                     .eventTime(eventTime)
-                    .property("table-name", "roi-departure")
+                    .property("table-name", "roi-departure") //TODO remove, deprecated
                     .property("dvj-id", String.valueOf(common.getIsOnDatedVehicleJourneyId()))
+                    .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture.toString())
+
                     .value(departure.toByteArray());
 
             messageBuilderQueue.add(msgBuilder);
