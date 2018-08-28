@@ -1,8 +1,6 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
-import org.apache.pulsar.client.api.Message;
-import org.apache.pulsar.client.api.MessageBuilder;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
@@ -30,34 +28,34 @@ public class DepartureHandler extends PubtransTableHandler {
 
         while (resultSet.next()) {
 
-            PubtransTableProtos.ROIBase.Builder baseBuilder = PubtransTableProtos.ROIBase.newBuilder();
+            PubtransTableProtos.Common.Builder commonBuilder = PubtransTableProtos.Common.newBuilder();
 
             //This is the LastModifiedUTCDateTime from the database. It will be used in the actual protobuf message and
             //the Pulsar message eventTime field
             long eventTime = resultSet.getTimestamp(19).getTime();
             if (eventTime > tempTimeStamp) tempTimeStamp = eventTime;
 
-            baseBuilder.setId(resultSet.getLong(1));
-            baseBuilder.setIsOnDatedVehicleJourneyId(resultSet.getLong(2));
-            if (resultSet.getBytes(3) != null) baseBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong(3));
-            baseBuilder.setJourneyPatternSequenceNumber(resultSet.getInt(4));
-            baseBuilder.setIsTimetabledAtJourneyPatternPointGid(resultSet.getLong(5));
-            baseBuilder.setVisitCountNumber(resultSet.getInt(6));
-            if (resultSet.getBytes(7) != null) baseBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong(7));
-            if (resultSet.getBytes(8) != null) baseBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong(8));
-            if (resultSet.getBytes(12) != null) baseBuilder.setTimetabledLatestDateTime(resultSet.getString(12));
-            if (resultSet.getBytes(13) != null) baseBuilder.setTargetDateTime(resultSet.getString(13));
-            if (resultSet.getBytes(14) != null) baseBuilder.setEstimatedDateTime(resultSet.getString(14));
-            if (resultSet.getBytes(15) != null) baseBuilder.setObservedDateTime(resultSet.getString(15));
-            baseBuilder.setState(resultSet.getLong(16));
-            baseBuilder.setType(resultSet.getInt(17));
-            baseBuilder.setIsValidYesNo(resultSet.getBoolean(18));
-            baseBuilder.setLastModifiedUTCDateTime(eventTime);
+            commonBuilder.setId(resultSet.getLong(1));
+            commonBuilder.setIsOnDatedVehicleJourneyId(resultSet.getLong(2));
+            if (resultSet.getBytes(3) != null) commonBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong(3));
+            commonBuilder.setJourneyPatternSequenceNumber(resultSet.getInt(4));
+            commonBuilder.setIsTimetabledAtJourneyPatternPointGid(resultSet.getLong(5));
+            commonBuilder.setVisitCountNumber(resultSet.getInt(6));
+            if (resultSet.getBytes(7) != null) commonBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong(7));
+            if (resultSet.getBytes(8) != null) commonBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong(8));
+            if (resultSet.getBytes(12) != null) commonBuilder.setTimetabledLatestDateTime(resultSet.getString(12));
+            if (resultSet.getBytes(13) != null) commonBuilder.setTargetDateTime(resultSet.getString(13));
+            if (resultSet.getBytes(14) != null) commonBuilder.setEstimatedDateTime(resultSet.getString(14));
+            if (resultSet.getBytes(15) != null) commonBuilder.setObservedDateTime(resultSet.getString(15));
+            commonBuilder.setState(resultSet.getLong(16));
+            commonBuilder.setType(resultSet.getInt(17));
+            commonBuilder.setIsValidYesNo(resultSet.getBoolean(18));
+            commonBuilder.setLastModifiedUtcDateTime(eventTime);
 
-            PubtransTableProtos.ROIBase base = baseBuilder.build();
+            PubtransTableProtos.Common common = commonBuilder.build();
 
             PubtransTableProtos.ROIDeparture.Builder departureBuilder = PubtransTableProtos.ROIDeparture.newBuilder();
-            departureBuilder.setBase(base);
+            departureBuilder.setCommon(common);
             if (resultSet.getBytes(9) != null) departureBuilder.setHasDestinationDisplayId(resultSet.getLong(9));
             if (resultSet.getBytes(10) != null) departureBuilder.setHasDestinationStopAreaGid(resultSet.getLong(10));
             if (resultSet.getBytes(11) != null) departureBuilder.setHasServiceRequirementId(resultSet.getLong(11));
@@ -67,7 +65,7 @@ public class DepartureHandler extends PubtransTableHandler {
                     .key(resultSet.getString(2) + resultSet.getString(4))
                     .eventTime(eventTime)
                     .property("table-name", "roi-departure")
-                    .property("dvj-id", String.valueOf(base.getIsOnDatedVehicleJourneyId()))
+                    .property("dvj-id", String.valueOf(common.getIsOnDatedVehicleJourneyId()))
                     .value(departure.toByteArray());
 
             messageBuilderQueue.add(msgBuilder);
