@@ -32,6 +32,8 @@ public class ArrivalHandler extends PubtransTableHandler {
             long eventTime = resultSet.getTimestamp(16).getTime();
             if (eventTime > tempTimeStamp) tempTimeStamp = eventTime;
 
+            //We're hardcoding the version number to proto file to ease syncing with changes, however we still need to set it since it's a required field
+            commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
             commonBuilder.setId(resultSet.getLong(1));
             commonBuilder.setIsOnDatedVehicleJourneyId(resultSet.getLong(2));
             if (resultSet.getBytes(3) != null) commonBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong(3));
@@ -50,6 +52,7 @@ public class ArrivalHandler extends PubtransTableHandler {
             commonBuilder.setLastModifiedUtcDateTime(eventTime);
 
             PubtransTableProtos.Common common = commonBuilder.build();
+
             PubtransTableProtos.ROIArrival.Builder arrivalBuilder = PubtransTableProtos.ROIArrival.newBuilder();
             arrivalBuilder.setCommon(common);
             PubtransTableProtos.ROIArrival arrival = arrivalBuilder.build();

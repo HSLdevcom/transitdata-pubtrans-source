@@ -14,8 +14,6 @@ import java.util.Queue;
 
 public class DepartureHandler extends PubtransTableHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(DepartureHandler.class);
-
     public DepartureHandler(Producer producer) {
         super(producer);
     }
@@ -36,6 +34,8 @@ public class DepartureHandler extends PubtransTableHandler {
             long eventTime = resultSet.getTimestamp(19).getTime();
             if (eventTime > tempTimeStamp) tempTimeStamp = eventTime;
 
+            //We're hardcoding the version number to proto file to ease syncing with changes, however we still need to set it since it's a required field
+            commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
             commonBuilder.setId(resultSet.getLong(1));
             commonBuilder.setIsOnDatedVehicleJourneyId(resultSet.getLong(2));
             if (resultSet.getBytes(3) != null) commonBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong(3));
