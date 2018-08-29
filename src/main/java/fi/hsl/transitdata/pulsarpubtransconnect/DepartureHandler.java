@@ -66,9 +66,8 @@ public class DepartureHandler extends PubtransTableHandler {
                     .key(resultSet.getString(2) + resultSet.getString(4))
                     .eventTime(eventTime)
                     .property("table-name", "roi-departure") //TODO remove, deprecated
-                    .property("dvj-id", String.valueOf(common.getIsOnDatedVehicleJourneyId()))
+                    .property(TransitdataProperties.KEY_DVJ_ID, String.valueOf(common.getIsOnDatedVehicleJourneyId()))
                     .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture.toString())
-
                     .value(departure.toByteArray());
 
             messageBuilderQueue.add(msgBuilder);

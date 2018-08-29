@@ -1,7 +1,7 @@
 ## Description
 
 A proof of concept for following functionalities
-- Connect to ptROI and ptDOI4
+- Connect to Pubtrans ptROI and ptDOI4
 - Fetch rows of data from different tables
 - Connect to a local Pulsar cluster
 - Produce data to pulsar topics
