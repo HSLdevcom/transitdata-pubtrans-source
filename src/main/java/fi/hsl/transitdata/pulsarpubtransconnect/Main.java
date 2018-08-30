@@ -9,10 +9,10 @@ import java.util.concurrent.TimeUnit;
 
 import com.microsoft.sqlserver.jdbc.*;
 import com.typesafe.config.Config;
-import fi.hsl.common.ConfigParser;
+import fi.hsl.common.config.ConfigParser;
+import fi.hsl.common.config.ConfigUtils;
 import fi.hsl.common.pulsar.PulsarApplication;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
-import fi.hsl.common.transitdata.TransitdataUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,7 +67,7 @@ public class Main {
         String connectionString = "";
         try {
             //Default path is what works with Docker out-of-the-box. Override with a local file if needed
-            final String secretFilePath = TransitdataUtils.getEnv("FILEPATH_CONNECTION_STRING").orElse("/run/secrets/pubtrans_community_conn_string");
+            final String secretFilePath = ConfigUtils.getEnv("FILEPATH_CONNECTION_STRING").orElse("/run/secrets/pubtrans_community_conn_string");
             connectionString = new Scanner(new File(secretFilePath))
                     .useDelimiter("\\Z").next();
         } catch (Exception e) {

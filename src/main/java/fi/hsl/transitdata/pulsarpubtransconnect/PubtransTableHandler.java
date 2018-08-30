@@ -1,21 +1,21 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
-import org.apache.pulsar.client.api.Message;
-import org.apache.pulsar.client.api.MessageBuilder;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class PubtransTableHandler {
+    static final Logger log = LoggerFactory.getLogger(PubtransTableHandler.class);
 
     private long lastModifiedTimeStamp;
     Producer<byte[]> producer;
 
-    public PubtransTableHandler(Producer producer) {
+    public PubtransTableHandler(Producer<byte[]> producer) {
         this.lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
         this.producer = producer;
     }
