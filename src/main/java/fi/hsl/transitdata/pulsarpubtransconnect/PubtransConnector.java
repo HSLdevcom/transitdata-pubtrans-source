@@ -6,7 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.time.ZoneId;
+import java.util.Calendar;
 import java.util.Queue;
+import java.util.TimeZone;
 
 public class PubtransConnector {
 
@@ -82,8 +85,8 @@ public class PubtransConnector {
             msg.sendAsync().thenRun(() -> {});
         }
 
-        log.info(messageBuilderQueue.size() + " messages written. Newest timestamp: " + new java.sql.Timestamp(handler.getLastModifiedTimeStamp()) +
-                " Total query and processing time: " + (System.currentTimeMillis() - this.queryStartTime) + " ms");
+        log.info(messageBuilderQueue.size() + " messages written. Newest timestamp: " + handler.getLastModifiedTimeStamp() +
+                        " Total query and processing time: " + (System.currentTimeMillis() - this.queryStartTime) + " ms");
     }
 }
 
