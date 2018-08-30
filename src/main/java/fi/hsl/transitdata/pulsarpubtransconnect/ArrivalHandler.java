@@ -13,7 +13,7 @@ import java.util.Queue;
 public class ArrivalHandler extends PubtransTableHandler {
 
     public ArrivalHandler(Producer<byte[]> producer) {
-        super(producer);
+        super(producer, TransitdataProperties.ProtobufSchema.PubtransRoiArrival);
     }
 
     @Override
@@ -57,13 +57,10 @@ public class ArrivalHandler extends PubtransTableHandler {
             arrivalBuilder.setCommon(common);
             PubtransTableProtos.ROIArrival arrival = arrivalBuilder.build();
 
-            TypedMessageBuilder msgBuilder = producer.newMessage()
-                    .key(resultSet.getString(2) + resultSet.getString(4))
-                    .eventTime(eventTime)
-                    .property("table-name", "roi-arrival") //TODO remove, deprecated
-                    .property("dvj-id", String.valueOf(common.getIsOnDatedVehicleJourneyId()))
-                    .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, TransitdataProperties.ProtobufSchema.PubtransRoiArrival.toString())
-                    .value(arrival.toByteArray());
+            final String key = resultSet.getString(2) + resultSet.getString(4);
+            final long dvjId = common.getIsOnDatedVehicleJourneyId();
+            final byte[] data = arrival.toByteArray();
+            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, data);
 
             messageBuilderQueue.add(msgBuilder);
         }

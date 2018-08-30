@@ -9,7 +9,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.microsoft.sqlserver.jdbc.*;
 import com.typesafe.config.Config;
-import fi.hsl.common.ConfigParser;
+import fi.hsl.common.config.ConfigParser;
+import fi.hsl.common.config.ConfigUtils;
 import fi.hsl.common.pulsar.PulsarApplication;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
 import org.slf4j.Logger;
@@ -21,7 +22,7 @@ public class Main {
 
     public static void main(String[] args) {
         try {
-            String table = System.getenv("PT_TABLE");
+            String table = ConfigUtils.getEnvOrThrow("PT_TABLE");
             PubtransTableType type = PubtransTableType.fromString(table);
 
             Config config = null;
@@ -65,7 +66,9 @@ public class Main {
     private static Connection createPubtransConnection() throws Exception {
         String connectionString = "";
         try {
-            connectionString = new Scanner(new File("/run/secrets/pubtrans_community_conn_string"))
+            //Default path is what works with Docker out-of-the-box. Override with a local file if needed
+            final String secretFilePath = ConfigUtils.getEnv("FILEPATH_CONNECTION_STRING").orElse("/run/secrets/pubtrans_community_conn_string");
+            connectionString = new Scanner(new File(secretFilePath))
                     .useDelimiter("\\Z").next();
         } catch (Exception e) {
             log.error("Failed to read Pubtrans connection string from secrets", e);
