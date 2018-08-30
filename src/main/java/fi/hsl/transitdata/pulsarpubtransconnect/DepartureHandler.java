@@ -14,8 +14,8 @@ import java.util.Queue;
 
 public class DepartureHandler extends PubtransTableHandler {
 
-    public DepartureHandler(Producer producer) {
-        super(producer);
+    public DepartureHandler(Producer<byte[]> producer) {
+        super(producer, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
     }
 
     @Override
@@ -62,13 +62,10 @@ public class DepartureHandler extends PubtransTableHandler {
             if (resultSet.getBytes(11) != null) departureBuilder.setHasServiceRequirementId(resultSet.getLong(11));
             PubtransTableProtos.ROIDeparture departure = departureBuilder.build();
 
-            TypedMessageBuilder<byte[]> msgBuilder = producer.newMessage()
-                    .key(resultSet.getString(2) + resultSet.getString(4))
-                    .eventTime(eventTime)
-                    .property("table-name", "roi-departure") //TODO remove, deprecated
-                    .property(TransitdataProperties.KEY_DVJ_ID, String.valueOf(common.getIsOnDatedVehicleJourneyId()))
-                    .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture.toString())
-                    .value(departure.toByteArray());
+            final String key = resultSet.getString(2) + resultSet.getString(4);
+            final long dvjId = common.getIsOnDatedVehicleJourneyId();
+            final byte[] data = departure.toByteArray();
+            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, data);
 
             messageBuilderQueue.add(msgBuilder);
 
