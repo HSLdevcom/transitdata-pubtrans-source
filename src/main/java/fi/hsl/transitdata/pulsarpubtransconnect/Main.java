@@ -22,7 +22,7 @@ public class Main {
 
     public static void main(String[] args) {
         try {
-            String table = System.getenv("PT_TABLE");
+            String table = ConfigUtils.getEnvOrThrow("PT_TABLE");
             PubtransTableType type = PubtransTableType.fromString(table);
 
             Config config = null;
