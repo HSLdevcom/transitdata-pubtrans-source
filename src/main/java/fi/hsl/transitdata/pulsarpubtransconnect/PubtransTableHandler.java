@@ -18,7 +18,6 @@ public abstract class PubtransTableHandler {
     private long lastModifiedTimeStamp;
     Producer<byte[]> producer;
     final TransitdataProperties.ProtobufSchema schema;
-    final String redisPrefix = TransitdataProperties.REDIS_PREFIX_DVJ; //TODO when to use JPP?!
     private Jedis jedis;
 
     public PubtransTableHandler(Jedis jedis, Producer<byte[]> producer, TransitdataProperties.ProtobufSchema schema) {
@@ -37,14 +36,19 @@ public abstract class PubtransTableHandler {
     }
 
     private Map<String, String> getJourneyInfo(long dvjId) {
-        String key = redisPrefix + Long.toString(dvjId);
+        String key = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
         return jedis.hgetAll(key);
+    }
+
+    private String getStopId(long jppId) {
+        String key = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
+        return jedis.get(key);
     }
 
     //TODO finetune SQL so that we can use common method to parse most of the fields. now derived classes contain a lot of duplicate code.
     abstract public Queue<TypedMessageBuilder> handleResultSet(ResultSet resultSet) throws SQLException;
 
-    TypedMessageBuilder createMessage(String key, long eventTime, long dvjId, byte[] data) {
+    TypedMessageBuilder createMessage(String key, long eventTime, long dvjId, long jppId, byte[] data) {
         Map<String, String> journeyInfo = getJourneyInfo(dvjId);
         if (journeyInfo != null) {
             boolean containsAll = journeyInfo.containsKey(TransitdataProperties.KEY_DIRECTION) &&
@@ -57,7 +61,7 @@ public abstract class PubtransTableHandler {
         } else {
             throw new IllegalArgumentException("No journey data found for DatedVehicleJourneyId " + dvjId);
         }
-
+        String stopId = getStopId(jppId);
         return producer.newMessage()
                 .key(key)
                 .eventTime(eventTime)
@@ -67,6 +71,7 @@ public abstract class PubtransTableHandler {
                 .property(TransitdataProperties.KEY_ROUTE_NAME, journeyInfo.get(TransitdataProperties.KEY_ROUTE_NAME))
                 .property(TransitdataProperties.KEY_START_TIME, journeyInfo.get(TransitdataProperties.KEY_START_TIME))
                 .property(TransitdataProperties.KEY_OPERATING_DAY, journeyInfo.get(TransitdataProperties.KEY_OPERATING_DAY))
+                .property(TransitdataProperties.KEY_STOP_ID, stopId)
                 .value(data);
     }
 }

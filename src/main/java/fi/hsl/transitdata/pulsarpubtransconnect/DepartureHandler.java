@@ -65,8 +65,9 @@ public class DepartureHandler extends PubtransTableHandler {
 
             final String key = resultSet.getString(2) + resultSet.getString(4);
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
+            final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = departure.toByteArray();
-            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, data);
+            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, jppId, data);
 
             messageBuilderQueue.add(msgBuilder);
 
