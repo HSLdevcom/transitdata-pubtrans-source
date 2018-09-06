@@ -18,6 +18,7 @@ public abstract class PubtransTableHandler {
     private long lastModifiedTimeStamp;
     Producer<byte[]> producer;
     final TransitdataProperties.ProtobufSchema schema;
+    final String redisPrefix = TransitdataProperties.REDIS_PREFIX_DVJ; //TODO when to use JPP?!
     private Jedis jedis;
 
     public PubtransTableHandler(Jedis jedis, Producer<byte[]> producer, TransitdataProperties.ProtobufSchema schema) {
@@ -35,16 +36,21 @@ public abstract class PubtransTableHandler {
         this.lastModifiedTimeStamp = ts;
     }
 
+    private Map<String, String> getJourneyInfo(long dvjId) {
+        String key = redisPrefix + Long.toString(dvjId);
+        return jedis.hgetAll(key);
+    }
+
     //TODO finetune SQL so that we can use common method to parse most of the fields. now derived classes contain a lot of duplicate code.
     abstract public Queue<TypedMessageBuilder> handleResultSet(ResultSet resultSet) throws SQLException;
 
     TypedMessageBuilder createMessage(String key, long eventTime, long dvjId, byte[] data) {
-        Map<String, String> journeyInfo = jedis.hgetAll(Long.toString(dvjId));
+        Map<String, String> journeyInfo = getJourneyInfo(dvjId);
         if (journeyInfo != null) {
-            boolean containsAll = journeyInfo.containsValue(TransitdataProperties.KEY_DIRECTION) &&
-                    journeyInfo.containsValue(TransitdataProperties.KEY_ROUTE_NAME) &&
-                    journeyInfo.containsValue(TransitdataProperties.KEY_START_TIME) &&
-                    journeyInfo.containsValue(TransitdataProperties.KEY_OPERATING_DAY);
+            boolean containsAll = journeyInfo.containsKey(TransitdataProperties.KEY_DIRECTION) &&
+                    journeyInfo.containsKey(TransitdataProperties.KEY_ROUTE_NAME) &&
+                    journeyInfo.containsKey(TransitdataProperties.KEY_START_TIME) &&
+                    journeyInfo.containsKey(TransitdataProperties.KEY_OPERATING_DAY);
             if (!containsAll) {
                 throw new IllegalArgumentException("Missing fields in journey data for DatedVehicleJourneyId " + dvjId);
             }
