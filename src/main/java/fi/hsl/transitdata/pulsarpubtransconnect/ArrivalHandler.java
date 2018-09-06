@@ -4,6 +4,7 @@ import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import redis.clients.jedis.Jedis;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,8 +13,8 @@ import java.util.Queue;
 
 public class ArrivalHandler extends PubtransTableHandler {
 
-    public ArrivalHandler(Producer<byte[]> producer) {
-        super(producer, TransitdataProperties.ProtobufSchema.PubtransRoiArrival);
+    public ArrivalHandler(Jedis jedis, Producer<byte[]> producer) {
+        super(jedis, producer, TransitdataProperties.ProtobufSchema.PubtransRoiArrival);
     }
 
     @Override
