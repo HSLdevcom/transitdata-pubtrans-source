@@ -12,7 +12,7 @@ More system-level documentation can be found in [this project](https://gitlab.hs
 
 ### Dependencies
 
-This project depends on [transitdata-common](https://gitlab.hsl.fi/transitdata/transitdata-common) project.
+This project depends on [transitdata-common](https://github.com/HSLdevcom/transitdata-common) project.
 
 Either use released versions from public maven repository or build your own and install to local maven repository:
   - ```cd transitdata-common && mvn install```  
@@ -24,8 +24,6 @@ Either use released versions from public maven repository or build your own and 
 
 ### Docker image
 
-- At the moment the Docker image requires the common-lib (common.jar) to be found in /dependencies folder. Please copy it there.
-   - This problem will resolve itself once we have common-lib available in a public maven repository.
 - Run [this script](build-image.sh) to build the Docker image
 
 
