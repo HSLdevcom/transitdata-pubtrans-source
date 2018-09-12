@@ -6,6 +6,7 @@ import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -14,8 +15,8 @@ import java.util.Queue;
 
 public class DepartureHandler extends PubtransTableHandler {
 
-    public DepartureHandler(Producer<byte[]> producer) {
-        super(producer, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
+    public DepartureHandler(Jedis jedis, Producer<byte[]> producer) {
+        super(jedis, producer, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
     }
 
     @Override
@@ -64,8 +65,9 @@ public class DepartureHandler extends PubtransTableHandler {
 
             final String key = resultSet.getString(2) + resultSet.getString(4);
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
+            final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = departure.toByteArray();
-            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, data);
+            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, jppId, data);
 
             messageBuilderQueue.add(msgBuilder);
 

@@ -4,6 +4,7 @@ import com.typesafe.config.Config;
 import org.apache.pulsar.client.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
 
 import java.sql.*;
 import java.util.Queue;
@@ -20,7 +21,7 @@ public class PubtransConnector {
     private PubtransTableHandler handler;
 
 
-    public PubtransConnector(Connection connection, Producer<byte[]> producer, Config config, PubtransTableType tableType) {
+    public PubtransConnector(Connection connection, Jedis jedis, Producer<byte[]> producer, Config config, PubtransTableType tableType) {
 
         this.connection = connection;
         this.queryString = queryString(config);
@@ -28,10 +29,10 @@ public class PubtransConnector {
         log.info("TableType: " + tableType);
         switch (tableType) {
             case ROI_ARRIVAL:
-                this.handler = new ArrivalHandler(producer);
+                this.handler = new ArrivalHandler(jedis, producer);
                 break;
             case ROI_DEPARTURE:
-                this.handler = new DepartureHandler(producer);
+                this.handler = new DepartureHandler(jedis, producer);
                 break;
             default:
                 throw new IllegalArgumentException("Table type not supported");

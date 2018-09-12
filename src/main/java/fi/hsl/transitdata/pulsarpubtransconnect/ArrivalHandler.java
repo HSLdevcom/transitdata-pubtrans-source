@@ -4,6 +4,7 @@ import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import redis.clients.jedis.Jedis;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,8 +13,8 @@ import java.util.Queue;
 
 public class ArrivalHandler extends PubtransTableHandler {
 
-    public ArrivalHandler(Producer<byte[]> producer) {
-        super(producer, TransitdataProperties.ProtobufSchema.PubtransRoiArrival);
+    public ArrivalHandler(Jedis jedis, Producer<byte[]> producer) {
+        super(jedis, producer, TransitdataProperties.ProtobufSchema.PubtransRoiArrival);
     }
 
     @Override
@@ -59,8 +60,9 @@ public class ArrivalHandler extends PubtransTableHandler {
 
             final String key = resultSet.getString(2) + resultSet.getString(4);
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
+            final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = arrival.toByteArray();
-            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, data);
+            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, jppId, data);
 
             messageBuilderQueue.add(msgBuilder);
         }
