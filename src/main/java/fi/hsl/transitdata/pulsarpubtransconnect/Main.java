@@ -3,6 +3,7 @@ package fi.hsl.transitdata.pulsarpubtransconnect;
 import java.util.Scanner;
 import java.io.File;
 import java.sql.*;
+import java.util.TimeZone;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +20,27 @@ import org.slf4j.LoggerFactory;
 public class Main {
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
+
+    /**
+     * Pubtrans stores modified timestamps in UTC format.
+     *
+     * We're creating java.sql.Timestamps(long epoch) which are also by definition in UTC format.
+     * We inject the query parameter via prepared statements into the SQL Server queries.
+     *
+     * However for some reason JDBC Driver seems to convert this epoch to local datetime before running the query.
+     * Using Calendar instances and java.time.* classes don't seem to work, since in our case
+     * the ResultSet is always empty because of the conversion.
+     *
+     * So far the only working solution has been to set the whole JVM to use UTC timezone, which is a hack.
+     * However it seems that we have to live with it until we find a better solution..
+     *
+     * See More:
+     * https://github.com/Microsoft/mssql-jdbc/issues/339
+     * https://social.msdn.microsoft.com/Forums/sqlserver/en-US/5b4fb9bf-fb9b-44eb-a7a2-222b92c31f5a/sql-server-jdbc-driver-datetimezone-related-query?forum=sqldataaccess
+     * */
+    static {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+    }
 
     public static void main(String[] args) {
         try {

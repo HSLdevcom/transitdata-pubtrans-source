@@ -25,13 +25,13 @@ public class ArrivalHandler extends PubtransTableHandler {
         long tempTimeStamp = getLastModifiedTimeStamp();
 
         while (resultSet.next()) {
-
             PubtransTableProtos.Common.Builder commonBuilder = PubtransTableProtos.Common.newBuilder();
 
             //This is the LastModifiedUTCDateTime from the database. It will be used in the actual protobuf message and
             //the Pulsar message eventTime field
             long eventTime = resultSet.getTimestamp(16).getTime();
-            if (eventTime > tempTimeStamp) tempTimeStamp = eventTime;
+            if (eventTime > tempTimeStamp)
+                tempTimeStamp = eventTime;
 
             //We're hardcoding the version number to proto file to ease syncing with changes, however we still need to set it since it's a required field
             commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
