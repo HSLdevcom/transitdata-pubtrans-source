@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/HSLdevcom/transitdata-pubtrans-source.svg?branch=master)](https://travis-ci.org/HSLdevcom/transitdata-pubtrans-source)
+
 ## Description
 
 A proof of concept for following functionalities
@@ -34,11 +36,11 @@ Requirements:
   - By default uses localhost, override host in PULSAR_HOST if needed.
     - Tip: f.ex if running inside Docker in OSX set `PULSAR_HOST=host.docker.internal` to connect to the parent machine
   - You can use [this script](https://gitlab.hsl.fi/transitdata/transitdata-doc/bin/pulsar/pulsar-up.sh) to launch it as Docker container
-- Connection string to Pubtrans database is read from file. 
-  - Set filepath via env variable FILEPATH_CONNECTION_STRING, default is `/run/secrets/pubtrans_community_conn_string` 
+- Connection string to Pubtrans database is read from file.
+  - Set filepath via env variable FILEPATH_CONNECTION_STRING, default is `/run/secrets/pubtrans_community_conn_string`
 
-All other configuration options are configured in the [config files](src/main/resources/) 
-which can also be configured externally via env variable CONFIG_PATH. 
+All other configuration options are configured in the [config files](src/main/resources/)
+which can also be configured externally via env variable CONFIG_PATH.
 
 Launch Docker container with
 
