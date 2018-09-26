@@ -43,6 +43,7 @@ public class Main {
     }
 
     public static void main(String[] args) {
+        log.info("Starting Pubtrans Source Application");
         try {
             String table = ConfigUtils.getEnvOrThrow("PT_TABLE");
             PubtransTableType type = PubtransTableType.fromString(table);
