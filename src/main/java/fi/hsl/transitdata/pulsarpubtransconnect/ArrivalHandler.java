@@ -9,6 +9,7 @@ import redis.clients.jedis.Jedis;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedList;
+import java.util.Optional;
 import java.util.Queue;
 
 public class ArrivalHandler extends PubtransTableHandler {
@@ -18,7 +19,7 @@ public class ArrivalHandler extends PubtransTableHandler {
     }
 
     @Override
-    public Queue<TypedMessageBuilder> handleResultSet(ResultSet resultSet) throws SQLException{
+    public Queue<TypedMessageBuilder> handleResultSet(ResultSet resultSet) throws SQLException {
 
         Queue<TypedMessageBuilder>  messageBuilderQueue = new LinkedList<>();
 
@@ -62,9 +63,9 @@ public class ArrivalHandler extends PubtransTableHandler {
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = arrival.toByteArray();
-            TypedMessageBuilder msgBuilder = createMessage(key, eventTime, dvjId, jppId, data);
 
-            messageBuilderQueue.add(msgBuilder);
+            Optional<TypedMessageBuilder> maybeBuilder = createMessage(key, eventTime, dvjId, jppId, data);
+            maybeBuilder.ifPresent(messageBuilderQueue::add);
         }
 
         setLastModifiedTimeStamp(tempTimeStamp);
