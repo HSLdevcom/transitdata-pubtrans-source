@@ -10,6 +10,7 @@ import redis.clients.jedis.Jedis;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 
 public abstract class PubtransTableHandler {
@@ -48,7 +49,7 @@ public abstract class PubtransTableHandler {
     //TODO finetune SQL so that we can use common method to parse most of the fields. now derived classes contain a lot of duplicate code.
     abstract public Queue<TypedMessageBuilder> handleResultSet(ResultSet resultSet) throws SQLException;
 
-    TypedMessageBuilder createMessage(String key, long eventTime, long dvjId, long jppId, byte[] data) {
+    Optional<TypedMessageBuilder> createMessage(String key, long eventTime, long dvjId, long jppId, byte[] data) {
         Map<String, String> journeyInfo = getJourneyInfo(dvjId);
         if (journeyInfo != null) {
             boolean containsAll = journeyInfo.containsKey(TransitdataProperties.KEY_DIRECTION) &&
@@ -56,13 +57,16 @@ public abstract class PubtransTableHandler {
                     journeyInfo.containsKey(TransitdataProperties.KEY_START_TIME) &&
                     journeyInfo.containsKey(TransitdataProperties.KEY_OPERATING_DAY);
             if (!containsAll) {
-                throw new IllegalArgumentException("Missing fields in journey data for DatedVehicleJourneyId " + dvjId);
+                log.error("Missing fields in journey data from Redis for DatedVehicleJourneyId " + dvjId);
+                return Optional.empty();
             }
         } else {
-            throw new IllegalArgumentException("No journey data found for DatedVehicleJourneyId " + dvjId);
+            log.error("No journey data found from Redis for DatedVehicleJourneyId " + dvjId);
+            return Optional.empty();
         }
         String stopId = getStopId(jppId);
-        return producer.newMessage()
+        return Optional.of(
+                producer.newMessage()
                 .key(key)
                 .eventTime(eventTime)
                 .property(TransitdataProperties.KEY_DVJ_ID, Long.toString(dvjId))
@@ -72,6 +76,6 @@ public abstract class PubtransTableHandler {
                 .property(TransitdataProperties.KEY_START_TIME, journeyInfo.get(TransitdataProperties.KEY_START_TIME))
                 .property(TransitdataProperties.KEY_OPERATING_DAY, journeyInfo.get(TransitdataProperties.KEY_OPERATING_DAY))
                 .property(TransitdataProperties.KEY_STOP_ID, stopId)
-                .value(data);
+                .value(data));
     }
 }
