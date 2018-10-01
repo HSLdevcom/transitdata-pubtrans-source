@@ -70,19 +70,16 @@ public class Main {
             ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
             log.info("Starting scheduler");
 
-            scheduler.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if(connector.checkPrecondition()) {
-                            connector.queryAndProcessResults();
-                        }
-                        else {
-                            log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
-                        }
-                    } catch (Exception e) {
-                        log.error("Error at Pubtrans scheduler", e);
+            scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if(connector.checkPrecondition()) {
+                        connector.queryAndProcessResults();
                     }
+                    else {
+                        log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
+                    }
+                } catch (Exception e) {
+                    log.error("Error at Pubtrans scheduler", e);
                 }
             }, 0, 1, TimeUnit.SECONDS);
         }
