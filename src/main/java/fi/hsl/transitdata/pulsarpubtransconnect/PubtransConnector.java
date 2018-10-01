@@ -12,6 +12,7 @@ import java.sql.*;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
@@ -80,9 +81,12 @@ public class PubtransConnector {
     }
 
     public boolean checkPrecondition() {
+        if (!enableCacheCheck)
+            return true;
+
         String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
         if (lastUpdate != null) {
-            OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_INSTANT);
+            OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
             return isCacheValid(dt, cacheMaxAgeInMins);
         }
         else {
@@ -97,7 +101,7 @@ public class PubtransConnector {
         //Java8 does not support getting duration as minutes directly.
         final long secondsSinceUpdate = Duration.between(lastCacheUpdate, now).get(ChronoUnit.SECONDS);
         final long minutesSinceUpdate = Math.floorDiv(secondsSinceUpdate, 60);
-        log.debug("Current time is " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
+        log.debug("Current time " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
 
