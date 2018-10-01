@@ -94,7 +94,9 @@ public class PubtransConnector {
     static boolean isCacheValid(OffsetDateTime lastCacheUpdate, final int cacheMaxAgeInMins) {
 
         OffsetDateTime now = OffsetDateTime.now();
-        final long minutesSinceUpdate = Duration.between(lastCacheUpdate, now).get(ChronoUnit.MINUTES);
+        //Java8 does not support getting duration as minutes directly.
+        final long secondsSinceUpdate = Duration.between(lastCacheUpdate, now).get(ChronoUnit.SECONDS);
+        final long minutesSinceUpdate = Math.floorDiv(secondsSinceUpdate, 60);
         log.debug("Current time is " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
