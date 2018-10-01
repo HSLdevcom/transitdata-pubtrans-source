@@ -1,6 +1,5 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
-import com.sun.scenario.effect.Offset;
 import com.typesafe.config.Config;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import org.apache.pulsar.client.api.*;
@@ -11,13 +10,9 @@ import redis.clients.jedis.Jedis;
 import java.sql.*;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Calendar;
 import java.util.Queue;
-import java.util.TimeZone;
 
 public class PubtransConnector {
 
