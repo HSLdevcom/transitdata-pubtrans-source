@@ -65,19 +65,21 @@ public class Main {
             PulsarApplication app = PulsarApplication.newInstance(config);
             PulsarApplicationContext context = app.getContext();
 
-            final PubtransConnector connector = new PubtransConnector(connection, context.getJedis(), context.getProducer(), config, type);
+            final PubtransConnector connector = PubtransConnector.newInstance(connection, context.getJedis(), context.getProducer(), config, type);
 
             ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
             log.info("Starting scheduler");
 
-            scheduler.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    try {
+            scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if(connector.checkPrecondition()) {
                         connector.queryAndProcessResults();
-                    } catch (Exception e) {
-                        log.error("Error at Pubtrans scheduler", e);
                     }
+                    else {
+                        log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
+                    }
+                } catch (Exception e) {
+                    log.error("Error at Pubtrans scheduler", e);
                 }
             }, 0, 1, TimeUnit.SECONDS);
         }

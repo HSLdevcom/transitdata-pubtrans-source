@@ -1,16 +1,18 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
 import com.typesafe.config.Config;
+import fi.hsl.common.transitdata.TransitdataProperties;
 import org.apache.pulsar.client.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
 import java.sql.*;
-import java.time.ZoneId;
-import java.util.Calendar;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Queue;
-import java.util.TimeZone;
 
 public class PubtransConnector {
 
@@ -20,30 +22,45 @@ public class PubtransConnector {
     private long queryStartTime;
 
     private String queryString;
+    private boolean enableCacheCheck;
+    private int cacheMaxAgeInMins;
 
     private PubtransTableHandler handler;
+    private Jedis jedis;
 
+    private PubtransConnector() {}
 
-    public PubtransConnector(Connection connection, Jedis jedis, Producer<byte[]> producer, Config config, PubtransTableType tableType) {
+    public static PubtransConnector newInstance(Connection connection,
+                                                Jedis jedis,
+                                                Producer<byte[]> producer,
+                                                Config config,
+                                                PubtransTableType tableType) throws RuntimeException {
+        PubtransConnector connector = new PubtransConnector();
 
-        this.connection = connection;
-        this.queryString = queryString(config);
+        connector.connection = connection;
+        connector.jedis = jedis;
+        connector.queryString = queryString(config);
+
+        connector.enableCacheCheck = config.getBoolean("application.enableCacheTimestampCheck");
+        connector.cacheMaxAgeInMins = config.getInt("application.cacheMaxAgeInMinutes");
+
+        log.info("Cache pre-condition enabled: " + connector.enableCacheCheck + " with max age "+ connector.cacheMaxAgeInMins);
 
         log.info("TableType: " + tableType);
         switch (tableType) {
             case ROI_ARRIVAL:
-                this.handler = new ArrivalHandler(jedis, producer);
+                connector.handler = new ArrivalHandler(jedis, producer);
                 break;
             case ROI_DEPARTURE:
-                this.handler = new DepartureHandler(jedis, producer);
+                connector.handler = new DepartureHandler(jedis, producer);
                 break;
             default:
                 throw new IllegalArgumentException("Table type not supported");
         }
-
+        return connector;
     }
 
-    private String queryString(Config config) {
+    private static String queryString(Config config) {
         String longName = config.getString("pubtrans.longName");
         String shortName = config.getString("pubtrans.shortName");
 
@@ -56,6 +73,31 @@ public class PubtransConnector {
                 .append(shortName)
                 .append(".LastModifiedUTCDateTime > ? ")
                 .toString();
+    }
+
+    public boolean checkPrecondition() {
+        if (!enableCacheCheck)
+            return true;
+
+        String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
+        if (lastUpdate != null) {
+            OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
+            return isCacheValid(dt, cacheMaxAgeInMins);
+        }
+        else {
+            log.error("Could not find last cache update timestamp from redis");
+            return false;
+        }
+    }
+
+    static boolean isCacheValid(OffsetDateTime lastCacheUpdate, final int cacheMaxAgeInMins) {
+
+        OffsetDateTime now = OffsetDateTime.now();
+        //Java8 does not support getting duration as minutes directly.
+        final long secondsSinceUpdate = Duration.between(lastCacheUpdate, now).get(ChronoUnit.SECONDS);
+        final long minutesSinceUpdate = Math.floorDiv(secondsSinceUpdate, 60);
+        log.debug("Current time " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
+        return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
 
     public void queryAndProcessResults() {
@@ -76,7 +118,6 @@ public class PubtransConnector {
         finally {
             if (resultSet != null)  try { resultSet.close(); } catch (Exception e) {log.error(e.getMessage());}
             if (statement != null)  try { statement.close(); } catch (Exception e) {log.error(e.getMessage());}
-            //if (connection != null)  try { connection.close(); } catch (Exception e) {}
         }
     }
 
