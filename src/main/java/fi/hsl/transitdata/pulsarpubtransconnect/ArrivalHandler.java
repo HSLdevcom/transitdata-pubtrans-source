@@ -19,9 +19,9 @@ public class ArrivalHandler extends PubtransTableHandler {
     }
 
     @Override
-    public Queue<TypedMessageBuilder> handleResultSet(ResultSet resultSet) throws SQLException {
+    public Queue<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException {
 
-        Queue<TypedMessageBuilder>  messageBuilderQueue = new LinkedList<>();
+        Queue<TypedMessageBuilder<byte[]>> messageBuilderQueue = new LinkedList<>();
 
         long tempTimeStamp = getLastModifiedTimeStamp();
 
@@ -64,7 +64,7 @@ public class ArrivalHandler extends PubtransTableHandler {
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = arrival.toByteArray();
 
-            Optional<TypedMessageBuilder> maybeBuilder = createMessage(key, eventTime, dvjId, jppId, data);
+            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTime, dvjId, jppId, data);
             maybeBuilder.ifPresent(messageBuilderQueue::add);
         }
 

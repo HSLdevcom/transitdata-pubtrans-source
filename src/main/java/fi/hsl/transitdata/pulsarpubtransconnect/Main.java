@@ -7,8 +7,6 @@ import java.util.TimeZone;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import com.microsoft.sqlserver.jdbc.*;
 import com.typesafe.config.Config;
@@ -83,18 +81,10 @@ public class Main {
                         log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
                     }
                 }
-                catch (JedisException jedisException) {
-                    log.error("Problems with Redis connection", jedisException);
+                catch (JedisException | SQLException | PulsarClientException connectionException) {
+                    log.error("Connection problem, cannot recover so shutting down", connectionException);
                     closeApplication(app, scheduler);
                 }
-                catch (SQLException sqlException) {
-                    log.error("Problems with SQL connection", sqlException);
-                    closeApplication(app, scheduler);
-                }
-                /*catch (PulsarClientException pulsarException) {
-                    log.error("Problems with Pulsar connection", pulsarException);
-                    closeApplication(app, scheduler);
-                }*/
                 catch (Exception e) {
                     log.error("Unknown error at Pubtrans scheduler", e);
                 }
