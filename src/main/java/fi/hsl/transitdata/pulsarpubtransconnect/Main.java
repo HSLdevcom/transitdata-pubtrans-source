@@ -7,6 +7,8 @@ import java.util.TimeZone;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import com.microsoft.sqlserver.jdbc.*;
 import com.typesafe.config.Config;
@@ -14,8 +16,10 @@ import fi.hsl.common.config.ConfigParser;
 import fi.hsl.common.config.ConfigUtils;
 import fi.hsl.common.pulsar.PulsarApplication;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
+import org.apache.pulsar.client.api.PulsarClientException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.exceptions.JedisException;
 
 public class Main {
 
@@ -62,12 +66,12 @@ public class Main {
 
             Connection connection = createPubtransConnection();
 
-            PulsarApplication app = PulsarApplication.newInstance(config);
+            final PulsarApplication app = PulsarApplication.newInstance(config);
             PulsarApplicationContext context = app.getContext();
 
             final PubtransConnector connector = PubtransConnector.newInstance(connection, context.getJedis(), context.getProducer(), config, type);
 
-            ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+            final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
             log.info("Starting scheduler");
 
             scheduler.scheduleAtFixedRate(() -> {
@@ -78,14 +82,33 @@ public class Main {
                     else {
                         log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
                     }
-                } catch (Exception e) {
-                    log.error("Error at Pubtrans scheduler", e);
+                }
+                catch (JedisException jedisException) {
+                    log.error("Problems with Redis connection", jedisException);
+                    closeApplication(app, scheduler);
+                }
+                catch (SQLException sqlException) {
+                    log.error("Problems with SQL connection", sqlException);
+                    closeApplication(app, scheduler);
+                }
+                /*catch (PulsarClientException pulsarException) {
+                    log.error("Problems with Pulsar connection", pulsarException);
+                    closeApplication(app, scheduler);
+                }*/
+                catch (Exception e) {
+                    log.error("Unknown error at Pubtrans scheduler", e);
                 }
             }, 0, 1, TimeUnit.SECONDS);
         }
         catch (Exception e) {
             log.error("Exception at Main", e);
         }
+    }
+
+    private static void closeApplication(PulsarApplication app, ScheduledExecutorService scheduler) {
+        log.warn("Closing application");
+        scheduler.shutdown();
+        app.close();
     }
 
     private static Connection createPubtransConnection() throws Exception {

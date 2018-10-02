@@ -100,7 +100,7 @@ public class PubtransConnector {
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
 
-    public void queryAndProcessResults() {
+    public void queryAndProcessResults() throws SQLException {
 
         queryStartTime = System.currentTimeMillis();
         PreparedStatement statement = null;
@@ -111,9 +111,6 @@ public class PubtransConnector {
             statement.setTimestamp(1, new java.sql.Timestamp(handler.getLastModifiedTimeStamp()));
             resultSet = statement.executeQuery();
             produceMessages(handler.handleResultSet(resultSet));
-        }
-        catch (Exception e) {
-            log.error("Exception while processing results", e);
         }
         finally {
             if (resultSet != null)  try { resultSet.close(); } catch (Exception e) {log.error(e.getMessage());}
