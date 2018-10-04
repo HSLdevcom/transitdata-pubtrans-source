@@ -70,8 +70,9 @@ public class PubtransConnector {
                 .append(" AS ")
                 .append(shortName)
                 .append(" WHERE ")
-                .append(shortName)
-                .append(".LastModifiedUTCDateTime > ? ")
+                .append(shortName).append(".LastModifiedUTCDateTime > ? ")
+                .append(" ORDER BY ")
+                .append(shortName).append(".LastModifiedUTCDateTime")
                 .toString();
     }
 
