@@ -14,8 +14,10 @@ import fi.hsl.common.config.ConfigParser;
 import fi.hsl.common.config.ConfigUtils;
 import fi.hsl.common.pulsar.PulsarApplication;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
+import org.apache.pulsar.client.api.PulsarClientException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.exceptions.JedisException;
 
 public class Main {
 
@@ -62,12 +64,12 @@ public class Main {
 
             Connection connection = createPubtransConnection();
 
-            PulsarApplication app = PulsarApplication.newInstance(config);
+            final PulsarApplication app = PulsarApplication.newInstance(config);
             PulsarApplicationContext context = app.getContext();
 
             final PubtransConnector connector = PubtransConnector.newInstance(connection, context.getJedis(), context.getProducer(), config, type);
 
-            ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+            final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
             log.info("Starting scheduler");
 
             scheduler.scheduleAtFixedRate(() -> {
@@ -78,14 +80,25 @@ public class Main {
                     else {
                         log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
                     }
-                } catch (Exception e) {
-                    log.error("Error at Pubtrans scheduler", e);
+                }
+                catch (JedisException | SQLException | PulsarClientException connectionException) {
+                    log.error("Connection problem, cannot recover so shutting down", connectionException);
+                    closeApplication(app, scheduler);
+                }
+                catch (Exception e) {
+                    log.error("Unknown error at Pubtrans scheduler", e);
                 }
             }, 0, 1, TimeUnit.SECONDS);
         }
         catch (Exception e) {
             log.error("Exception at Main", e);
         }
+    }
+
+    private static void closeApplication(PulsarApplication app, ScheduledExecutorService scheduler) {
+        log.warn("Closing application");
+        scheduler.shutdown();
+        app.close();
     }
 
     private static Connection createPubtransConnection() throws Exception {

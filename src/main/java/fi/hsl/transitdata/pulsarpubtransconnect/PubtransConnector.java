@@ -27,6 +27,7 @@ public class PubtransConnector {
 
     private PubtransTableHandler handler;
     private Jedis jedis;
+    private Producer<byte[]> producer;
 
     private PubtransConnector() {}
 
@@ -39,6 +40,7 @@ public class PubtransConnector {
 
         connector.connection = connection;
         connector.jedis = jedis;
+        connector.producer = producer;
         connector.queryString = queryString(config);
 
         connector.enableCacheCheck = config.getBoolean("application.enableCacheTimestampCheck");
@@ -100,7 +102,7 @@ public class PubtransConnector {
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
 
-    public void queryAndProcessResults() {
+    public void queryAndProcessResults() throws SQLException, PulsarClientException {
 
         queryStartTime = System.currentTimeMillis();
         PreparedStatement statement = null;
@@ -112,23 +114,30 @@ public class PubtransConnector {
             resultSet = statement.executeQuery();
             produceMessages(handler.handleResultSet(resultSet));
         }
-        catch (Exception e) {
-            log.error("Exception while processing results", e);
-        }
         finally {
             if (resultSet != null)  try { resultSet.close(); } catch (Exception e) {log.error(e.getMessage());}
             if (statement != null)  try { statement.close(); } catch (Exception e) {log.error(e.getMessage());}
         }
     }
 
-    private void produceMessages(Queue<TypedMessageBuilder> messageBuilderQueue) {
-
-        for (TypedMessageBuilder msg : messageBuilderQueue) {
-            msg.sendAsync().thenRun(() -> {});
+    private void produceMessages(Queue<TypedMessageBuilder<byte[]>> messageBuilderQueue) throws PulsarClientException {
+        if (!producer.isConnected()) {
+            throw new PulsarClientException("Producer is not connected");
         }
 
-        log.info(messageBuilderQueue.size() + " messages written. Newest timestamp: " + handler.getLastModifiedTimeStamp() +
-                        " Total query and processing time: " + (System.currentTimeMillis() - this.queryStartTime) + " ms");
+        for (TypedMessageBuilder<byte[]> msg : messageBuilderQueue) {
+            msg.sendAsync()
+                .exceptionally(throwable -> {
+                    log.error("Failed to send Pulsar message", throwable);
+                    return null;
+                });
+
+        }
+        //If we want to get Pulsar Exceptions to bubble up into this thread we need to do a sync flush for all pending messages.
+        producer.flush();
+
+        log.info(messageBuilderQueue.size() + " messages written. Latest timestamp: " + handler.getLastModifiedTimeStamp() +
+                " Total query and processing time: " + (System.currentTimeMillis() - this.queryStartTime) + " ms");
     }
 }
 

@@ -38,7 +38,7 @@ public abstract class PubtransTableHandler {
     }
 
     //TODO finetune SQL so that we can use common method to parse most of the fields. now derived classes contain a lot of duplicate code.
-    abstract public Queue<TypedMessageBuilder> handleResultSet(ResultSet resultSet) throws SQLException;
+    abstract public Queue<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException;
 
 
     class JourneyInfo {
@@ -88,7 +88,7 @@ public abstract class PubtransTableHandler {
         return Optional.ofNullable(jedis.get(key));
     }
 
-    Optional<TypedMessageBuilder> createMessage(String key, long eventTime, long dvjId, long jppId, byte[] data) {
+    Optional<TypedMessageBuilder<byte[]>> createMessage(String key, long eventTime, long dvjId, long jppId, byte[] data) {
         Optional<JourneyInfo> maybeJourneyInfo = getJourneyInfo(dvjId);
         if (!maybeJourneyInfo.isPresent()) {
             log.error("Could not find valid JourneyInfo from Redis for dvjId " + dvjId);
