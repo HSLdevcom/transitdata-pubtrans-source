@@ -74,7 +74,9 @@ public class PubtransConnector {
                 .append(" WHERE ")
                 .append(shortName).append(".LastModifiedUTCDateTime > ? ")
                 .append(" ORDER BY ")
-                .append(shortName).append(".LastModifiedUTCDateTime")
+                .append(shortName).append(".LastModifiedUTCDateTime, ")
+                .append(shortName).append(".IsOnDatedVehicleJourneyId, ")
+                .append(shortName).append(".JourneyPatternSequenceNumber DESC")
                 .toString();
     }
 
