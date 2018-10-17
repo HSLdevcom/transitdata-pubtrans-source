@@ -33,6 +33,7 @@ public class ArrivalHandler extends PubtransTableHandler {
             long eventTime = resultSet.getTimestamp(16).getTime();
             if (eventTime > tempTimeStamp)
                 tempTimeStamp = eventTime;
+            final long eventTimeInSecs = eventTime / 1000;
 
             //We're hardcoding the version number to proto file to ease syncing with changes, however we still need to set it since it's a required field
             commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
@@ -51,7 +52,7 @@ public class ArrivalHandler extends PubtransTableHandler {
             commonBuilder.setState(resultSet.getLong(13));
             commonBuilder.setType(resultSet.getInt(14));
             commonBuilder.setIsValidYesNo(resultSet.getBoolean(15));
-            commonBuilder.setLastModifiedUtcDateTime(eventTime);
+            commonBuilder.setLastModifiedUtcDateTime(eventTimeInSecs);
 
             PubtransTableProtos.Common common = commonBuilder.build();
 
@@ -64,7 +65,7 @@ public class ArrivalHandler extends PubtransTableHandler {
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = arrival.toByteArray();
 
-            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTime, dvjId, jppId, data);
+            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimeInSecs, dvjId, jppId, data);
             maybeBuilder.ifPresent(messageBuilderQueue::add);
         }
 

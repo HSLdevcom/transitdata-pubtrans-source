@@ -34,7 +34,9 @@ public class DepartureHandler extends PubtransTableHandler {
             //This is the LastModifiedUTCDateTime from the database. It will be used in the actual protobuf message and
             //the Pulsar message eventTime field
             long eventTime = resultSet.getTimestamp(19).getTime();
-            if (eventTime > tempTimeStamp) tempTimeStamp = eventTime;
+            if (eventTime > tempTimeStamp)
+                tempTimeStamp = eventTime;
+            final long eventTimeInSecs = eventTime / 1000;
 
             //We're hardcoding the version number to proto file to ease syncing with changes, however we still need to set it since it's a required field
             commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
@@ -53,7 +55,7 @@ public class DepartureHandler extends PubtransTableHandler {
             commonBuilder.setState(resultSet.getLong(16));
             commonBuilder.setType(resultSet.getInt(17));
             commonBuilder.setIsValidYesNo(resultSet.getBoolean(18));
-            commonBuilder.setLastModifiedUtcDateTime(eventTime);
+            commonBuilder.setLastModifiedUtcDateTime(eventTimeInSecs);
 
             PubtransTableProtos.Common common = commonBuilder.build();
 
@@ -69,7 +71,7 @@ public class DepartureHandler extends PubtransTableHandler {
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = departure.toByteArray();
 
-            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTime, dvjId, jppId, data);
+            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimeInSecs, dvjId, jppId, data);
             maybeBuilder.ifPresent(messageBuilderQueue::add);
         }
 
