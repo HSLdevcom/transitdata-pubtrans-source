@@ -9,6 +9,11 @@ import redis.clients.jedis.Jedis;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -35,6 +40,20 @@ public abstract class PubtransTableHandler {
 
     public void setLastModifiedTimeStamp(long ts) {
         this.lastModifiedTimeStamp = ts;
+    }
+
+    public static Optional<Long> toUtcEpochMs(String localTimestamp) {
+        try {
+            DateTimeFormatter formatter =
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S[SS]");
+            LocalDateTime dt = LocalDateTime.parse(localTimestamp, formatter);
+            long epochMs = dt.toEpochSecond(ZoneOffset.UTC) * 1000;
+            return Optional.of(epochMs);
+        }
+        catch (Exception e) {
+            log.error("Failed to parse datetime from " + localTimestamp, e);
+            return Optional.empty();
+        }
     }
 
     //TODO finetune SQL so that we can use common method to parse most of the fields. now derived classes contain a lot of duplicate code.
