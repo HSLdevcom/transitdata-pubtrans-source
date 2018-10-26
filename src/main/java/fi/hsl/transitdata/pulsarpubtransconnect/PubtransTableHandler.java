@@ -43,11 +43,12 @@ public abstract class PubtransTableHandler {
     }
 
     public static Optional<Long> toUtcEpochMs(String localTimestamp) {
+        if (localTimestamp == null || localTimestamp.isEmpty())
+            return Optional.empty();
+
         try {
-            DateTimeFormatter formatter =
-                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S[SS]");
-            LocalDateTime dt = LocalDateTime.parse(localTimestamp, formatter);
-            long epochMs = dt.toEpochSecond(ZoneOffset.UTC) * 1000;
+            LocalDateTime dt = LocalDateTime.parse(localTimestamp.replace(" ", "T")); // Make java.sql.Timestamp ISO compatible
+            long epochMs = dt.toInstant(ZoneOffset.UTC).toEpochMilli();
             return Optional.of(epochMs);
         }
         catch (Exception e) {
