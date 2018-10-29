@@ -54,10 +54,10 @@ public class ArrivalHandler extends PubtransTableHandler {
             commonBuilder.setType(resultSet.getInt(14));
             commonBuilder.setIsValidYesNo(resultSet.getBoolean(15));
 
-            String lastModified = resultSet.getTimestamp(16).toString();
-            final long eventTimestampMs = toUtcEpochMs(lastModified).get();
-            commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampMs);
+            //All other timestamps are in local time but Pubtrans stores this field in UTC timezone
+            final long eventTimestampUtcMs = resultSet.getTimestamp(16).getTime();
 
+            commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
             PubtransTableProtos.Common common = commonBuilder.build();
 
             PubtransTableProtos.ROIArrival.Builder arrivalBuilder = PubtransTableProtos.ROIArrival.newBuilder();
@@ -69,8 +69,13 @@ public class ArrivalHandler extends PubtransTableHandler {
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = arrival.toByteArray();
 
-            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimestampMs, dvjId, jppId, data);
+            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimestampUtcMs, dvjId, jppId, data);
             maybeBuilder.ifPresent(messageBuilderQueue::add);
+
+            //Update latest ts for next round
+            if (eventTimestampUtcMs > tempTimeStamp) {
+                tempTimeStamp = eventTimestampUtcMs;
+            }
         }
 
         setLastModifiedTimeStamp(tempTimeStamp);

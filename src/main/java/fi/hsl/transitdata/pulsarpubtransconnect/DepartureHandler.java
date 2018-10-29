@@ -57,8 +57,9 @@ public class DepartureHandler extends PubtransTableHandler {
             commonBuilder.setType(resultSet.getInt(17));
             commonBuilder.setIsValidYesNo(resultSet.getBoolean(18));
 
-            final long eventTimestampMs = toUtcEpochMs(resultSet.getTimestamp(19).toString()).get();
-            commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampMs);
+            //All other timestamps are in local time but Pubtrans stores this field in UTC timezone
+            final long eventTimestampUtcMs = resultSet.getTimestamp(19).getTime();
+            commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
 
             PubtransTableProtos.Common common = commonBuilder.build();
 
@@ -74,8 +75,13 @@ public class DepartureHandler extends PubtransTableHandler {
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = departure.toByteArray();
 
-            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimestampMs, dvjId, jppId, data);
+            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimestampUtcMs, dvjId, jppId, data);
             maybeBuilder.ifPresent(messageBuilderQueue::add);
+
+            //Update latest ts for next round
+            if (eventTimestampUtcMs > tempTimeStamp) {
+                tempTimeStamp = eventTimestampUtcMs;
+            }
         }
 
         setLastModifiedTimeStamp(tempTimeStamp);
