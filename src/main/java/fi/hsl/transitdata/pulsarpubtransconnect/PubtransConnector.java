@@ -1,6 +1,7 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
 import com.typesafe.config.Config;
+import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import org.apache.pulsar.client.api.*;
 import org.slf4j.Logger;
@@ -32,17 +33,16 @@ public class PubtransConnector {
     private PubtransConnector() {}
 
     public static PubtransConnector newInstance(Connection connection,
-                                                Jedis jedis,
-                                                Producer<byte[]> producer,
-                                                Config config,
+                                                PulsarApplicationContext context,
                                                 PubtransTableType tableType) throws RuntimeException {
         PubtransConnector connector = new PubtransConnector();
 
         connector.connection = connection;
-        connector.jedis = jedis;
-        connector.producer = producer;
-        connector.queryString = queryString(config);
+        connector.jedis = context.getJedis();
+        connector.producer = context.getProducer();
 
+        Config config = context.getConfig();
+        connector.queryString = queryString(config);
         connector.enableCacheCheck = config.getBoolean("application.enableCacheTimestampCheck");
         connector.cacheMaxAgeInMins = config.getInt("application.cacheMaxAgeInMinutes");
 
@@ -51,10 +51,10 @@ public class PubtransConnector {
         log.info("TableType: " + tableType);
         switch (tableType) {
             case ROI_ARRIVAL:
-                connector.handler = new ArrivalHandler(jedis, producer);
+                connector.handler = new ArrivalHandler(context);
                 break;
             case ROI_DEPARTURE:
-                connector.handler = new DepartureHandler(jedis, producer);
+                connector.handler = new DepartureHandler(context);
                 break;
             default:
                 throw new IllegalArgumentException("Table type not supported");

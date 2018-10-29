@@ -1,5 +1,6 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
+import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
@@ -16,8 +17,8 @@ import java.util.Queue;
 
 public class DepartureHandler extends PubtransTableHandler {
 
-    public DepartureHandler(Jedis jedis, Producer<byte[]> producer) {
-        super(jedis, producer, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
+    public DepartureHandler(PulsarApplicationContext context) {
+        super(context, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
     }
 
     @Override
@@ -44,14 +45,6 @@ public class DepartureHandler extends PubtransTableHandler {
                 commonBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong(7));
             if (resultSet.getBytes(8) != null)
                 commonBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong(8));
-            /*if (resultSet.getBytes(12) != null)
-                commonBuilder.setTimetabledLatestDateTime(resultSet.getString(12));
-            if (resultSet.getBytes(13) != null)
-                commonBuilder.setTargetDateTime(resultSet.getString(13));
-            if (resultSet.getBytes(14) != null)
-                commonBuilder.setEstimatedDateTime(resultSet.getString(14));
-            if (resultSet.getBytes(15) != null)
-                commonBuilder.setObservedDateTime(resultSet.getString(15));*/
             if (resultSet.getBytes(12) != null)
                 toUtcEpochMs(resultSet.getString(12)).map(commonBuilder::setTimetabledLatestUtcDateTimeMs);
             if (resultSet.getBytes(13) != null)
@@ -63,7 +56,6 @@ public class DepartureHandler extends PubtransTableHandler {
             commonBuilder.setState(resultSet.getLong(16));
             commonBuilder.setType(resultSet.getInt(17));
             commonBuilder.setIsValidYesNo(resultSet.getBoolean(18));
-            //commonBuilder.setLastModifiedUtcDateTime(eventTimeInSecs);
 
             final long eventTimestampMs = toUtcEpochMs(resultSet.getTimestamp(19).toString()).get();
             commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampMs);

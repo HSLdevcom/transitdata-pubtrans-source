@@ -1,5 +1,6 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
+import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -9,14 +10,10 @@ import redis.clients.jedis.Jedis;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Queue;
 
 public abstract class PubtransTableHandler {
@@ -26,12 +23,14 @@ public abstract class PubtransTableHandler {
     Producer<byte[]> producer;
     final TransitdataProperties.ProtobufSchema schema;
     private Jedis jedis;
+    private final String timeZone;
 
-    public PubtransTableHandler(Jedis jedis, Producer<byte[]> producer, TransitdataProperties.ProtobufSchema schema) {
-        this.lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
-        this.jedis = jedis;
-        this.producer = producer;
-        this.schema = schema;
+    public PubtransTableHandler(PulsarApplicationContext context, TransitdataProperties.ProtobufSchema handlerSchema) {
+        lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
+        jedis = context.getJedis();
+        producer = context.getProducer();
+        timeZone = context.getConfig().getString("pubtrans.timezone");
+        schema = handlerSchema;
     }
 
     public long getLastModifiedTimeStamp() {
@@ -42,13 +41,18 @@ public abstract class PubtransTableHandler {
         this.lastModifiedTimeStamp = ts;
     }
 
-    public static Optional<Long> toUtcEpochMs(String localTimestamp) {
+    public Optional<Long> toUtcEpochMs(String localTimestamp) {
+        return toUtcEpochMs(localTimestamp, timeZone);
+    }
+
+    public static Optional<Long> toUtcEpochMs(String localTimestamp, String zoneId) {
         if (localTimestamp == null || localTimestamp.isEmpty())
             return Optional.empty();
 
         try {
             LocalDateTime dt = LocalDateTime.parse(localTimestamp.replace(" ", "T")); // Make java.sql.Timestamp ISO compatible
-            long epochMs = dt.toInstant(ZoneOffset.UTC).toEpochMilli();
+            ZoneId zone = ZoneId.of(zoneId);
+            long epochMs = dt.atZone(zone).toInstant().toEpochMilli();
             return Optional.of(epochMs);
         }
         catch (Exception e) {
