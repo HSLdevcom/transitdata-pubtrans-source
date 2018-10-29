@@ -1,5 +1,6 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
+import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
@@ -16,8 +17,8 @@ import java.util.Queue;
 
 public class DepartureHandler extends PubtransTableHandler {
 
-    public DepartureHandler(Jedis jedis, Producer<byte[]> producer) {
-        super(jedis, producer, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
+    public DepartureHandler(PulsarApplicationContext context) {
+        super(context, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
     }
 
     @Override
@@ -31,31 +32,34 @@ public class DepartureHandler extends PubtransTableHandler {
 
             PubtransTableProtos.Common.Builder commonBuilder = PubtransTableProtos.Common.newBuilder();
 
-            //This is the LastModifiedUTCDateTime from the database. It will be used in the actual protobuf message and
-            //the Pulsar message eventTime field
-            long eventTime = resultSet.getTimestamp(19).getTime();
-            if (eventTime > tempTimeStamp)
-                tempTimeStamp = eventTime;
-            final long eventTimeInSecs = eventTime / 1000;
-
             //We're hardcoding the version number to proto file to ease syncing with changes, however we still need to set it since it's a required field
             commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
             commonBuilder.setId(resultSet.getLong(1));
             commonBuilder.setIsOnDatedVehicleJourneyId(resultSet.getLong(2));
-            if (resultSet.getBytes(3) != null) commonBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong(3));
+            if (resultSet.getBytes(3) != null)
+                commonBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong(3));
             commonBuilder.setJourneyPatternSequenceNumber(resultSet.getInt(4));
             commonBuilder.setIsTimetabledAtJourneyPatternPointGid(resultSet.getLong(5));
             commonBuilder.setVisitCountNumber(resultSet.getInt(6));
-            if (resultSet.getBytes(7) != null) commonBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong(7));
-            if (resultSet.getBytes(8) != null) commonBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong(8));
-            if (resultSet.getBytes(12) != null) commonBuilder.setTimetabledLatestDateTime(resultSet.getString(12));
-            if (resultSet.getBytes(13) != null) commonBuilder.setTargetDateTime(resultSet.getString(13));
-            if (resultSet.getBytes(14) != null) commonBuilder.setEstimatedDateTime(resultSet.getString(14));
-            if (resultSet.getBytes(15) != null) commonBuilder.setObservedDateTime(resultSet.getString(15));
+            if (resultSet.getBytes(7) != null)
+                commonBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong(7));
+            if (resultSet.getBytes(8) != null)
+                commonBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong(8));
+            if (resultSet.getBytes(12) != null)
+                toUtcEpochMs(resultSet.getString(12)).map(commonBuilder::setTimetabledLatestUtcDateTimeMs);
+            if (resultSet.getBytes(13) != null)
+                toUtcEpochMs(resultSet.getString(13)).map(commonBuilder::setTargetUtcDateTimeMs);
+            if (resultSet.getBytes(14) != null)
+                toUtcEpochMs(resultSet.getString(14)).map(commonBuilder::setEstimatedUtcDateTimeMs);
+            if (resultSet.getBytes(15) != null)
+                toUtcEpochMs(resultSet.getString(15)).map(commonBuilder::setObservedUtcDateTimeMs);
             commonBuilder.setState(resultSet.getLong(16));
             commonBuilder.setType(resultSet.getInt(17));
             commonBuilder.setIsValidYesNo(resultSet.getBoolean(18));
-            commonBuilder.setLastModifiedUtcDateTime(eventTimeInSecs);
+
+            //All other timestamps are in local time but Pubtrans stores this field in UTC timezone
+            final long eventTimestampUtcMs = resultSet.getTimestamp(19).getTime();
+            commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
 
             PubtransTableProtos.Common common = commonBuilder.build();
 
@@ -71,8 +75,13 @@ public class DepartureHandler extends PubtransTableHandler {
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
             final byte[] data = departure.toByteArray();
 
-            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimeInSecs, dvjId, jppId, data);
+            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimestampUtcMs, dvjId, jppId, data);
             maybeBuilder.ifPresent(messageBuilderQueue::add);
+
+            //Update latest ts for next round
+            if (eventTimestampUtcMs > tempTimeStamp) {
+                tempTimeStamp = eventTimestampUtcMs;
+            }
         }
 
         setLastModifiedTimeStamp(tempTimeStamp);

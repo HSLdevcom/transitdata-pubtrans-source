@@ -67,7 +67,7 @@ public class Main {
             final PulsarApplication app = PulsarApplication.newInstance(config);
             PulsarApplicationContext context = app.getContext();
 
-            final PubtransConnector connector = PubtransConnector.newInstance(connection, context.getJedis(), context.getProducer(), config, type);
+            final PubtransConnector connector = PubtransConnector.newInstance(connection, context, type);
 
             final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
             log.info("Starting scheduler");
