@@ -60,6 +60,8 @@ public class DepartureHandler extends PubtransTableHandler {
             //All other timestamps are in local time but Pubtrans stores this field in UTC timezone
             final long eventTimestampUtcMs = resultSet.getTimestamp(19).getTime();
             commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
+            final long delay = System.currentTimeMillis() - eventTimestampUtcMs;
+            log.debug("delay is {}", delay);
 
             PubtransTableProtos.Common common = commonBuilder.build();
 

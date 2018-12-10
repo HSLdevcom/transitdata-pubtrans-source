@@ -59,6 +59,8 @@ public class ArrivalHandler extends PubtransTableHandler {
 
             commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
             PubtransTableProtos.Common common = commonBuilder.build();
+            final long delay = System.currentTimeMillis() - eventTimestampUtcMs;
+            log.debug("delay is {}", delay);
 
             PubtransTableProtos.ROIArrival.Builder arrivalBuilder = PubtransTableProtos.ROIArrival.newBuilder();
             arrivalBuilder.setCommon(common);
