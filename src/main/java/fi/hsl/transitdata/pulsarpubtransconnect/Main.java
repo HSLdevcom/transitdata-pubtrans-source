@@ -44,6 +44,8 @@ public class Main {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
     }
 
+    static boolean previousQuerySuccess = false;
+
     public static void main(String[] args) {
         log.info("Starting Pubtrans Source Application");
         try {
@@ -73,12 +75,29 @@ public class Main {
             log.info("Starting scheduler");
 
             scheduler.scheduleAtFixedRate(() -> {
+                boolean success = false;
                 try {
                     if(connector.checkPrecondition()) {
                         connector.queryAndProcessResults();
                     }
                     else {
                         log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
+                    }
+                    success = true;
+                }
+                catch (SQLServerException sqlServerException) {
+                    // Occasionally (once every 2 hours?) the driver throws us out as a deadlock victim.
+                    // There's no easy way to fix the root problem so lets keep trying after the first time and abort only on two consecutive errors.
+                    // More info: https://stackoverflow.com/questions/8390322/cause-of-a-process-being-a-deadlock-victim
+                    if (previousQuerySuccess) {
+                        log.warn("SQL Server exception, giving this one more try.. ", sqlServerException);
+                        // TODO: Use Driver Error code for more detailed handling.
+                        log.warn("Driver Error code: {}", sqlServerException.getErrorCode());
+                    }
+                    else {
+                        log.error("SQL Server two consecutive exceptions so shutting down", sqlServerException);
+                        log.warn("Driver Error code: {}", sqlServerException.getErrorCode());
+                        closeApplication(app, scheduler);
                     }
                 }
                 catch (JedisException | SQLException | PulsarClientException connectionException) {
@@ -87,6 +106,13 @@ public class Main {
                 }
                 catch (Exception e) {
                     log.error("Unknown error at Pubtrans scheduler", e);
+                    if (!previousQuerySuccess) {
+                        log.error("Had two consecutive unknown errors so shutting down");
+                        closeApplication(app, scheduler);
+                    }
+                }
+                finally {
+                    previousQuerySuccess = success;
                 }
             }, 0, 1, TimeUnit.SECONDS);
         }
