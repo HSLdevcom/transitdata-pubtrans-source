@@ -2,6 +2,7 @@ package fi.hsl.transitdata.pulsarpubtransconnect;
 
 import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
+import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -61,8 +63,75 @@ public abstract class PubtransTableHandler {
         }
     }
 
-    //TODO finetune SQL so that we can use common method to parse most of the fields. now derived classes contain a lot of duplicate code.
-    abstract public Queue<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException;
+    abstract protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common) throws SQLException;
+
+    abstract protected String getTimetabledDateTimeColumnName();
+
+    public Queue<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException {
+
+        Queue<TypedMessageBuilder<byte[]>> messageBuilderQueue = new LinkedList<>();
+
+        long tempTimeStamp = getLastModifiedTimeStamp();
+
+        while (resultSet.next()) {
+            PubtransTableProtos.Common common = parseCommon(resultSet);
+            final long eventTimestampUtcMs = common.getLastModifiedUtcDateTimeMs();
+
+            final long delay = System.currentTimeMillis() - eventTimestampUtcMs;
+            log.debug("delay is {}", delay);
+
+            final String key = resultSet.getString("IsOnDatedVehicleJourneyId") + resultSet.getString("JourneyPatternSequenceNumber");
+            final long dvjId = common.getIsOnDatedVehicleJourneyId();
+            final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
+            final byte[] data = createPayload(resultSet, common);
+
+            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimestampUtcMs, dvjId, jppId, data);
+            maybeBuilder.ifPresent(messageBuilderQueue::add);
+
+            //Update latest ts for next round
+            if (eventTimestampUtcMs > tempTimeStamp) {
+                tempTimeStamp = eventTimestampUtcMs;
+            }
+        }
+
+        setLastModifiedTimeStamp(tempTimeStamp);
+
+        return messageBuilderQueue;
+    }
+
+    protected PubtransTableProtos.Common parseCommon(ResultSet resultSet) throws SQLException {
+        PubtransTableProtos.Common.Builder commonBuilder = PubtransTableProtos.Common.newBuilder();
+
+        //We're hardcoding the version number to proto file to ease syncing with changes, however we still need to set it since it's a required field
+        commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
+        commonBuilder.setId(resultSet.getLong("Id"));
+        commonBuilder.setIsOnDatedVehicleJourneyId(resultSet.getLong("IsOnDatedVehicleJourneyId"));
+        if (resultSet.getBytes("IsOnMonitoredVehicleJourneyId") != null)
+            commonBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong("IsOnMonitoredVehicleJourneyId"));
+        commonBuilder.setJourneyPatternSequenceNumber(resultSet.getInt("JourneyPatternSequenceNumber"));
+        commonBuilder.setIsTimetabledAtJourneyPatternPointGid(resultSet.getLong("IsTimetabledAtJourneyPatternPointGid"));
+        commonBuilder.setVisitCountNumber(resultSet.getInt("VisitCountNumber"));
+        if (resultSet.getBytes("IsTargetedAtJourneyPatternPointGid") != null)
+            commonBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong("IsTargetedAtJourneyPatternPointGid"));
+        if (resultSet.getBytes("WasObservedAtJourneyPatternPointGid") != null)
+            commonBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong("WasObservedAtJourneyPatternPointGid"));
+        if (resultSet.getBytes(getTimetabledDateTimeColumnName()) != null)
+            toUtcEpochMs(resultSet.getString(getTimetabledDateTimeColumnName())).map(commonBuilder::setTimetabledLatestUtcDateTimeMs);
+        if (resultSet.getBytes("TargetDateTime") != null)
+            toUtcEpochMs(resultSet.getString("TargetDateTime")).map(commonBuilder::setTargetUtcDateTimeMs);
+        if (resultSet.getBytes("EstimatedDateTime") != null)
+            toUtcEpochMs(resultSet.getString("EstimatedDateTime")).map(commonBuilder::setEstimatedUtcDateTimeMs);
+        if (resultSet.getBytes("ObservedDateTime") != null)
+            toUtcEpochMs(resultSet.getString("ObservedDateTime")).map(commonBuilder::setObservedUtcDateTimeMs);
+        commonBuilder.setState(resultSet.getLong("State"));
+        commonBuilder.setType(resultSet.getInt("Type"));
+        commonBuilder.setIsValidYesNo(resultSet.getBoolean("IsValidYesNo"));
+
+        //All other timestamps are in local time but Pubtrans stores this field in UTC timezone
+        final long eventTimestampUtcMs = resultSet.getTimestamp("LastModifiedUTCDateTime").getTime();
+        commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
+        return commonBuilder.build();
+    }
 
 
     class JourneyInfo {
