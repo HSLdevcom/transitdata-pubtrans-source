@@ -147,7 +147,7 @@ public abstract class PubtransTableHandler {
             operatingDay = map.get(TransitdataProperties.KEY_OPERATING_DAY);
             if (!isValid()) {
                 //Let's print more info for debugging purposes:
-                log.error("JourneyInfo is missing some fields. Content: " + this.toString());
+                log.warn("JourneyInfo is missing some fields. Content: " + this.toString());
             }
         }
 
@@ -184,11 +184,11 @@ public abstract class PubtransTableHandler {
     Optional<TypedMessageBuilder<byte[]>> createMessage(String key, long eventTime, long dvjId, long jppId, byte[] data) {
         Optional<JourneyInfo> maybeJourneyInfo = getJourneyInfo(dvjId);
         if (!maybeJourneyInfo.isPresent()) {
-            log.error("Could not find valid JourneyInfo from Redis for dvjId " + dvjId);
+            log.warn("Could not find valid JourneyInfo from Redis for dvjId " + dvjId);
         }
         Optional<String> maybeStopId = getStopId(jppId);
         if (!maybeStopId.isPresent()) {
-            log.error("Could not find StopId from Redis for dvjId " + dvjId);
+            log.warn("Could not find StopId from Redis for dvjId " + dvjId);
         }
 
         return maybeJourneyInfo.flatMap(journeyInfo ->
