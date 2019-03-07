@@ -2,6 +2,7 @@ package fi.hsl.transitdata.pulsarpubtransconnect;
 
 import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
+import fi.hsl.common.transitdata.TransitdataSchema;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -63,9 +64,11 @@ public abstract class PubtransTableHandler {
         }
     }
 
-    abstract protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common) throws SQLException;
+    abstract protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException;
 
     abstract protected String getTimetabledDateTimeColumnName();
+
+    abstract protected TransitdataSchema getSchema();
 
     public Queue<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException {
 
@@ -83,10 +86,16 @@ public abstract class PubtransTableHandler {
             final String key = resultSet.getString("IsOnDatedVehicleJourneyId") + resultSet.getString("JourneyPatternSequenceNumber");
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
             final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
-            final byte[] data = createPayload(resultSet, common);
 
-            Optional<TypedMessageBuilder<byte[]>> maybeBuilder = createMessage(key, eventTimestampUtcMs, dvjId, jppId, data);
-            maybeBuilder.ifPresent(messageBuilderQueue::add);
+            Optional<PubtransTableProtos.DOITripInfo> maybeTripInfo = getTripInfo(dvjId, jppId);
+            if (!maybeTripInfo.isPresent()) {
+                log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, jppId {}. Ignoring this update ", dvjId, jppId);
+            }
+            else {
+                final byte[] data = createPayload(resultSet, common, maybeTripInfo.get());
+                TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
+                messageBuilderQueue.add(msgBuilder);
+            }
 
             //Update latest ts for next round
             if (eventTimestampUtcMs > tempTimeStamp) {
@@ -133,77 +142,48 @@ public abstract class PubtransTableHandler {
         return commonBuilder.build();
     }
 
+    protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long jppId) {
+        try {
+            String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
+            Optional<String> maybeStopId = Optional.ofNullable(jedis.get(stopIdKey));
 
-    class JourneyInfo {
-        String direction;
-        String routeName;
-        String startTime;
-        String operatingDay;
+            String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
+            Optional<Map<String, String>> maybeTripInfoMap = Optional.ofNullable(jedis.hgetAll(tripInfoKey));
 
-        JourneyInfo(Map<String, String> map) {
-            direction = map.get(TransitdataProperties.KEY_DIRECTION);
-            routeName = map.get(TransitdataProperties.KEY_ROUTE_NAME);
-            startTime = map.get(TransitdataProperties.KEY_START_TIME);
-            operatingDay = map.get(TransitdataProperties.KEY_OPERATING_DAY);
-            if (!isValid()) {
-                //Let's print more info for debugging purposes:
-                log.warn("JourneyInfo is missing some fields. Content: " + this.toString());
+            if (maybeStopId.isPresent() && maybeTripInfoMap.isPresent()) {
+                PubtransTableProtos.DOITripInfo.Builder builder = PubtransTableProtos.DOITripInfo.newBuilder();
+                builder.setStopId(maybeStopId.get());
+                maybeTripInfoMap.ifPresent(map -> {
+                    if (map.containsKey(TransitdataProperties.KEY_DIRECTION))
+                        builder.setDirectionId(Integer.parseInt(map.get(TransitdataProperties.KEY_DIRECTION)));
+                    if (map.containsKey(TransitdataProperties.KEY_ROUTE_NAME))
+                        builder.setRouteId(map.get(TransitdataProperties.KEY_ROUTE_NAME));
+                    if (map.containsKey(TransitdataProperties.KEY_START_TIME))
+                        builder.setStartTime(map.get(TransitdataProperties.KEY_START_TIME));
+                    if (map.containsKey(TransitdataProperties.KEY_OPERATING_DAY))
+                        builder.setOperatingDay(map.get(TransitdataProperties.KEY_OPERATING_DAY));
+                });
+                builder.setDvjId(dvjId);
+                return Optional.of(builder.build());
+            }
+            else {
+                log.error("Failed to get data from Redis for dvjId {}, jppId {}", dvjId, jppId);
+                return Optional.empty();
             }
         }
-
-        boolean isValid() {
-            return direction != null && routeName != null &&
-                   startTime != null && operatingDay != null;
-        }
-
-        @Override
-        public String toString() {
-            return new StringBuilder()
-                    .append("direction: ").append(direction)
-                    .append(" routeName: ").append(routeName)
-                    .append(" startTime: ").append(startTime)
-                    .append(" operatingDay: ").append(operatingDay)
-                    .toString();
+        catch (Exception e) {
+            log.error("Failed to get Trip Info for dvj-id " + dvjId, e);
+            return Optional.empty();
         }
     }
 
-    private Optional<JourneyInfo> getJourneyInfo(long dvjId) {
-        String key = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
-        Optional<Map<String, String>> maybeJourneyInfoMap = Optional.ofNullable(jedis.hgetAll(key));
-
-        return maybeJourneyInfoMap
-                .map(JourneyInfo::new)
-                .filter(JourneyInfo::isValid);
-    }
-
-    private Optional<String> getStopId(long jppId) {
-        String key = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
-        return Optional.ofNullable(jedis.get(key));
-    }
-
-    Optional<TypedMessageBuilder<byte[]>> createMessage(String key, long eventTime, long dvjId, long jppId, byte[] data) {
-        Optional<JourneyInfo> maybeJourneyInfo = getJourneyInfo(dvjId);
-        if (!maybeJourneyInfo.isPresent()) {
-            log.warn("Could not find valid JourneyInfo from Redis for dvjId " + dvjId);
-        }
-        Optional<String> maybeStopId = getStopId(jppId);
-        if (!maybeStopId.isPresent()) {
-            log.warn("Could not find StopId from Redis for dvjId " + dvjId);
-        }
-
-        return maybeJourneyInfo.flatMap(journeyInfo ->
-                maybeStopId.map(stopId ->
-                    producer.newMessage()
-                            .key(key)
-                            .eventTime(eventTime)
-                            .property(TransitdataProperties.KEY_DVJ_ID, Long.toString(dvjId))
-                            .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, schema.toString())
-                            .property(TransitdataProperties.KEY_DIRECTION, journeyInfo.direction)
-                            .property(TransitdataProperties.KEY_ROUTE_NAME, journeyInfo.routeName)
-                            .property(TransitdataProperties.KEY_START_TIME, journeyInfo.startTime)
-                            .property(TransitdataProperties.KEY_OPERATING_DAY, journeyInfo.operatingDay)
-                            .property(TransitdataProperties.KEY_STOP_ID, stopId)
-                            .value(data))
-                );
+    protected TypedMessageBuilder<byte[]> createMessage(String key, long eventTime, long dvjId, byte[] data, TransitdataSchema schema) {
+        return producer.newMessage()
+                .key(key)
+                .eventTime(eventTime)
+                .property(TransitdataProperties.KEY_DVJ_ID, Long.toString(dvjId))
+                .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, schema.schema.toString())
+                .property(TransitdataProperties.KEY_SCHEMA_VERSION, Integer.toString(schema.schemaVersion.get()))
+                .value(data);
     }
 }
