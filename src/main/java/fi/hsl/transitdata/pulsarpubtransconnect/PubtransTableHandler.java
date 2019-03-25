@@ -142,13 +142,20 @@ public abstract class PubtransTableHandler {
         return commonBuilder.build();
     }
 
+    private Optional<String> getStopId(long jppId) {
+        String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
+        return Optional.ofNullable(jedis.get(stopIdKey));
+    }
+
+    private Optional<Map<String, String>> getTripInfoFields(long dvjId) {
+        String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
+        return Optional.ofNullable(jedis.hgetAll(tripInfoKey));
+    }
+
     protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long jppId) {
         try {
-            String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
-            Optional<String> maybeStopId = Optional.ofNullable(jedis.get(stopIdKey));
-
-            String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
-            Optional<Map<String, String>> maybeTripInfoMap = Optional.ofNullable(jedis.hgetAll(tripInfoKey));
+            Optional<String> maybeStopId = getStopId(jppId);
+            Optional<Map<String, String>> maybeTripInfoMap = getTripInfoFields(dvjId);
 
             if (maybeStopId.isPresent() && maybeTripInfoMap.isPresent()) {
                 PubtransTableProtos.DOITripInfo.Builder builder = PubtransTableProtos.DOITripInfo.newBuilder();
