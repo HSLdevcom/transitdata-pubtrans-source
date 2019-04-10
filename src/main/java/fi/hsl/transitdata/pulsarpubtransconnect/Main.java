@@ -23,6 +23,7 @@ public class Main {
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
 
+    private static final int SQL_SERVER_ERROR_DEADLOCK_VICTIM = 1205;
     /**
      * Pubtrans stores modified timestamps in UTC format.
      *
@@ -43,8 +44,6 @@ public class Main {
     static {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
     }
-
-    static boolean previousQuerySuccess = false;
 
     public static void main(String[] args) {
         log.info("Starting Pubtrans Source Application");
@@ -75,7 +74,6 @@ public class Main {
             log.info("Starting scheduler");
 
             scheduler.scheduleAtFixedRate(() -> {
-                boolean success = false;
                 try {
                     if(connector.checkPrecondition()) {
                         connector.queryAndProcessResults();
@@ -83,19 +81,16 @@ public class Main {
                     else {
                         log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
                     }
-                    success = true;
                 }
                 catch (SQLServerException sqlServerException) {
                     // Occasionally (once every 2 hours?) the driver throws us out as a deadlock victim.
-                    // There's no easy way to fix the root problem so lets keep trying after the first time and abort only on two consecutive errors.
+                    // There's no easy way to fix the root problem so lets just convert it to warning.
                     // More info: https://stackoverflow.com/questions/8390322/cause-of-a-process-being-a-deadlock-victim
-                    if (previousQuerySuccess) {
-                        log.warn("SQL Server exception, giving this one more try.. ", sqlServerException);
-                        // TODO: Use Driver Error code for more detailed handling.
-                        log.warn("Driver Error code: {}", sqlServerException.getErrorCode());
+                    if (sqlServerException.getErrorCode() == SQL_SERVER_ERROR_DEADLOCK_VICTIM) {
+                        log.warn("SQL Server evicted us as deadlock victim. ignoring this for now...", sqlServerException);
                     }
                     else {
-                        log.error("SQL Server two consecutive exceptions so shutting down", sqlServerException);
+                        log.error("SQL Server Unexpected error code, shutting down", sqlServerException);
                         log.warn("Driver Error code: {}", sqlServerException.getErrorCode());
                         closeApplication(app, scheduler);
                     }
@@ -105,14 +100,8 @@ public class Main {
                     closeApplication(app, scheduler);
                 }
                 catch (Exception e) {
-                    log.error("Unknown error at Pubtrans scheduler", e);
-                    if (!previousQuerySuccess) {
-                        log.error("Had two consecutive unknown errors so shutting down");
-                        closeApplication(app, scheduler);
-                    }
-                }
-                finally {
-                    previousQuerySuccess = success;
+                    log.error("Unknown error at Pubtrans scheduler, shutting down", e);
+                    closeApplication(app, scheduler);
                 }
             }, 0, 1, TimeUnit.SECONDS);
         }
