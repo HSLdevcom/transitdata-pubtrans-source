@@ -2,6 +2,7 @@ package fi.hsl.transitdata.pulsarpubtransconnect;
 
 import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
+import fi.hsl.common.transitdata.TransitdataSchema;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -17,6 +18,12 @@ import java.util.Queue;
 
 public class DepartureHandler extends PubtransTableHandler {
 
+    static final TransitdataSchema schema;
+    static {
+        int defaultVersion = PubtransTableProtos.ROIDeparture.newBuilder().getSchemaVersion();
+        schema = new TransitdataSchema(TransitdataProperties.ProtobufSchema.PubtransRoiDeparture, Optional.of(defaultVersion));
+    }
+
     public DepartureHandler(PulsarApplicationContext context) {
         super(context, TransitdataProperties.ProtobufSchema.PubtransRoiDeparture);
     }
@@ -27,9 +34,16 @@ public class DepartureHandler extends PubtransTableHandler {
     }
 
     @Override
-    protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common) throws SQLException {
+    protected TransitdataSchema getSchema() {
+        return schema;
+    }
+
+    @Override
+    protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException {
         PubtransTableProtos.ROIDeparture.Builder departureBuilder = PubtransTableProtos.ROIDeparture.newBuilder();
+        departureBuilder.setSchemaVersion(departureBuilder.getSchemaVersion());
         departureBuilder.setCommon(common);
+        departureBuilder.setTripInfo(tripInfo);
         if (resultSet.getBytes("HasDestinationDisplayId") != null)
             departureBuilder.setHasDestinationDisplayId(resultSet.getLong("HasDestinationDisplayId"));
         if (resultSet.getBytes("HasDestinationStopAreaGid") != null)
