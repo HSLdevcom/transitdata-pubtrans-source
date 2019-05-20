@@ -73,6 +73,8 @@ public class PubtransConnector {
                 .append(shortName)
                 .append(" WHERE ")
                 .append(shortName).append(".LastModifiedUTCDateTime > ? ")
+                .append(" AND ")
+                .append(shortName).append(".HasServiceRequirementId IS NOT NULL ")
                 .append(" ORDER BY ")
                 .append(shortName).append(".LastModifiedUTCDateTime, ")
                 .append(shortName).append(".IsOnDatedVehicleJourneyId, ")
