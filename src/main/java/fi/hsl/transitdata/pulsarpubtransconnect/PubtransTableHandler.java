@@ -179,7 +179,7 @@ public abstract class PubtransTableHandler {
             }
         }
         catch (Exception e) {
-            log.error("Failed to get Trip Info for dvj-id " + dvjId, e);
+            log.warn("Failed to get Trip Info for dvj-id " + dvjId, e);
             return Optional.empty();
         }
     }
