@@ -83,15 +83,16 @@ public class PubtransConnector {
     public boolean checkPrecondition() {
         if (!enableCacheCheck)
             return true;
-
-        String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
-        if (lastUpdate != null) {
-            OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
-            return isCacheValid(dt, cacheMaxAgeInMins);
-        }
-        else {
-            log.error("Could not find last cache update timestamp from redis");
-            return false;
+        synchronized (jedis) {
+            String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
+            if (lastUpdate != null) {
+                OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
+                return isCacheValid(dt, cacheMaxAgeInMins);
+            }
+            else {
+                log.error("Could not find last cache update timestamp from redis");
+                return false;
+            }
         }
     }
 
