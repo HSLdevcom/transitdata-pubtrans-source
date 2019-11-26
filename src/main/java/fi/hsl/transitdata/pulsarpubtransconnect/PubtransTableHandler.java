@@ -143,13 +143,17 @@ public abstract class PubtransTableHandler {
     }
 
     private Optional<String> getStopId(long jppId) {
-        String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
-        return Optional.ofNullable(jedis.get(stopIdKey));
+        synchronized (jedis) {
+            String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
+            return Optional.ofNullable(jedis.get(stopIdKey));
+        }
     }
 
     private Optional<Map<String, String>> getTripInfoFields(long dvjId) {
-        String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
-        return Optional.ofNullable(jedis.hgetAll(tripInfoKey));
+        synchronized (jedis) {
+            String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
+            return Optional.ofNullable(jedis.hgetAll(tripInfoKey));
+        }
     }
 
     protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long jppId) {
