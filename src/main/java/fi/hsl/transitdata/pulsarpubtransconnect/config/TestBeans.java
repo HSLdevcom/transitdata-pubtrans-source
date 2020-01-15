@@ -53,6 +53,6 @@ public class TestBeans {
     private AbstractPubtransConnector pubtransConnector(PulsarApplicationContext context) throws Exception {
         String table = ConfigUtils.getEnvOrThrow("PT_TABLE");
         PubtransTableType type = PubtransTableType.fromString(table);
-        return new MockPubTransConnector();
+        return new MockPubTransConnector(type);
     }
 }

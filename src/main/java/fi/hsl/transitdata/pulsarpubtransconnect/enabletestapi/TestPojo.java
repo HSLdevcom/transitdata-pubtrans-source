@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class TestPojo {
-    private long id;
-    private long IsOnDatedVehicleJourneyId;
-    private long IsOnMonitoredVehicleJourneyId;
+    private Long id;
+    private Long IsOnDatedVehicleJourneyId;
+    private Long IsOnMonitoredVehicleJourneyId;
 }

@@ -36,8 +36,7 @@ public class PubtransConnector extends AbstractPubtransConnector {
     private Jedis jedis;
     private Producer<byte[]> producer;
 
-    private PubtransConnector() {
-    }
+    private PubtransConnector() { }
 
     public static PubtransConnector newInstance(Connection connection,
                                                 PulsarApplicationContext context,
