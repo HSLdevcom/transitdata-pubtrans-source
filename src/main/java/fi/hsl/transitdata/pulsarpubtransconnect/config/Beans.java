@@ -22,7 +22,7 @@ import java.util.TimeZone;
 @Component
 @Slf4j
 @Profile("default")
-public class ApplicationBeans {
+public class Beans {
     static {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
     }
