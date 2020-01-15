@@ -3,19 +3,25 @@ package fi.hsl.transitdata.pulsarpubtransconnect;
 import com.typesafe.config.Config;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
-import org.apache.pulsar.client.api.*;
+import fi.hsl.transitdata.pulsarpubtransconnect.enabletestapi.AbstractPubtransConnector;
+import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Queue;
 
-public class PubtransConnector {
+public class PubtransConnector extends AbstractPubtransConnector {
 
     private static final Logger log = LoggerFactory.getLogger(PubtransConnector.class);
 
@@ -30,7 +36,8 @@ public class PubtransConnector {
     private Jedis jedis;
     private Producer<byte[]> producer;
 
-    private PubtransConnector() {}
+    private PubtransConnector() {
+    }
 
     public static PubtransConnector newInstance(Connection connection,
                                                 PulsarApplicationContext context,
@@ -46,7 +53,7 @@ public class PubtransConnector {
         connector.enableCacheCheck = config.getBoolean("application.enableCacheTimestampCheck");
         connector.cacheMaxAgeInMins = config.getInt("application.cacheMaxAgeInMinutes");
 
-        log.info("Cache pre-condition enabled: " + connector.enableCacheCheck + " with max age "+ connector.cacheMaxAgeInMins);
+        log.info("Cache pre-condition enabled: " + connector.enableCacheCheck + " with max age " + connector.cacheMaxAgeInMins);
 
         log.info("TableType: " + tableType);
         switch (tableType) {
@@ -80,22 +87,6 @@ public class PubtransConnector {
                 .toString();
     }
 
-    public boolean checkPrecondition() {
-        if (!enableCacheCheck)
-            return true;
-        synchronized (jedis) {
-            String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
-            if (lastUpdate != null) {
-                OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
-                return isCacheValid(dt, cacheMaxAgeInMins);
-            }
-            else {
-                log.error("Could not find last cache update timestamp from redis");
-                return false;
-            }
-        }
-    }
-
     static boolean isCacheValid(OffsetDateTime lastCacheUpdate, final int cacheMaxAgeInMins) {
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -104,6 +95,21 @@ public class PubtransConnector {
         final long minutesSinceUpdate = Math.floorDiv(secondsSinceUpdate, 60);
         log.debug("Current time " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
         return minutesSinceUpdate <= cacheMaxAgeInMins;
+    }
+
+    public boolean checkPrecondition() {
+        if (!enableCacheCheck)
+            return true;
+        synchronized (jedis) {
+            String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
+            if (lastUpdate != null) {
+                OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
+                return isCacheValid(dt, cacheMaxAgeInMins);
+            } else {
+                log.error("Could not find last cache update timestamp from redis");
+                return false;
+            }
+        }
     }
 
     public void queryAndProcessResults() throws SQLException, PulsarClientException {
@@ -117,10 +123,17 @@ public class PubtransConnector {
             statement.setTimestamp(1, new java.sql.Timestamp(handler.getLastModifiedTimeStamp()));
             resultSet = statement.executeQuery();
             produceMessages(handler.handleResultSet(resultSet));
-        }
-        finally {
-            if (resultSet != null)  try { resultSet.close(); } catch (Exception e) {log.error(e.getMessage());}
-            if (statement != null)  try { statement.close(); } catch (Exception e) {log.error(e.getMessage());}
+        } finally {
+            if (resultSet != null) try {
+                resultSet.close();
+            } catch (Exception e) {
+                log.error(e.getMessage());
+            }
+            if (statement != null) try {
+                statement.close();
+            } catch (Exception e) {
+                log.error(e.getMessage());
+            }
         }
     }
 
@@ -131,10 +144,10 @@ public class PubtransConnector {
 
         for (TypedMessageBuilder<byte[]> msg : messageBuilderQueue) {
             msg.sendAsync()
-                .exceptionally(throwable -> {
-                    log.error("Failed to send Pulsar message", throwable);
-                    return null;
-                });
+                    .exceptionally(throwable -> {
+                        log.error("Failed to send Pulsar message", throwable);
+                        return null;
+                    });
 
         }
         //If we want to get Pulsar Exceptions to bubble up into this thread we need to do a sync flush for all pending messages.
