@@ -11,14 +11,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
+import javax.swing.text.html.Option;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Queue;
+import java.util.*;
 
 public abstract class PubtransTableHandler {
     static final Logger log = LoggerFactory.getLogger(PubtransTableHandler.class);
@@ -148,30 +148,30 @@ public abstract class PubtransTableHandler {
         commonBuilder.setSchemaVersion(commonBuilder.getSchemaVersion());
         commonBuilder.setId(testPojo.getId());
         commonBuilder.setIsOnDatedVehicleJourneyId(testPojo.getIsOnDatedVehicleJourneyId());
-/*        if (testPojo.getIsOnMonitoredVehicleJourneyId() != null)
+        if (testPojo.getIsOnMonitoredVehicleJourneyId() != null)
             commonBuilder.setIsOnMonitoredVehicleJourneyId(testPojo.getIsOnMonitoredVehicleJourneyId());
-        commonBuilder.setJourneyPatternSequenceNumber(resultSet.getInt("JourneyPatternSequenceNumber"));
-        commonBuilder.setIsTimetabledAtJourneyPatternPointGid(resultSet.getLong("IsTimetabledAtJourneyPatternPointGid"));
-        commonBuilder.setVisitCountNumber(resultSet.getInt("VisitCountNumber"));
-        if (resultSet.getBytes("IsTargetedAtJourneyPatternPointGid") != null)
-            commonBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong("IsTargetedAtJourneyPatternPointGid"));
-        if (resultSet.getBytes("WasObservedAtJourneyPatternPointGid") != null)
-            commonBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong("WasObservedAtJourneyPatternPointGid"));
-        if (resultSet.getBytes(getTimetabledDateTimeColumnName()) != null)
-            toUtcEpochMs(resultSet.getString(getTimetabledDateTimeColumnName())).map(commonBuilder::setTimetabledLatestUtcDateTimeMs);
-        if (resultSet.getBytes("TargetDateTime") != null)
-            toUtcEpochMs(resultSet.getString("TargetDateTime")).map(commonBuilder::setTargetUtcDateTimeMs);
-        if (resultSet.getBytes("EstimatedDateTime") != null)
-            toUtcEpochMs(resultSet.getString("EstimatedDateTime")).map(commonBuilder::setEstimatedUtcDateTimeMs);
-        if (resultSet.getBytes("ObservedDateTime") != null)
-            toUtcEpochMs(resultSet.getString("ObservedDateTime")).map(commonBuilder::setObservedUtcDateTimeMs);
-        commonBuilder.setState(resultSet.getLong("State"));
-        commonBuilder.setType(resultSet.getInt("Type"));
-        commonBuilder.setIsValidYesNo(resultSet.getBoolean("IsValidYesNo"));
+        commonBuilder.setJourneyPatternSequenceNumber(testPojo.getJourneyPatternSequenceNumber());
+        commonBuilder.setIsTimetabledAtJourneyPatternPointGid(testPojo.getIsTimetabledAtJourneyPatternPointGid());
+        commonBuilder.setVisitCountNumber(testPojo.getVisitCountNumber());
+        if (testPojo.getIsTargetedAtJourneyPatternPointGid() != null)
+            commonBuilder.setIsTargetedAtJourneyPatternPointGid(testPojo.getIsTargetedAtJourneyPatternPointGid());
+        if (testPojo.getWasObservedAtJourneyPatternPointGid() != null)
+            commonBuilder.setWasObservedAtJourneyPatternPointGid(testPojo.getIsTargetedAtJourneyPatternPointGid());
+        if (testPojo.getGetTimetabledDateTimeColumnName() != null)
+            toUtcEpochMs(testPojo.getGetTimetabledDateTimeColumnName()).map(commonBuilder::setTimetabledLatestUtcDateTimeMs);
+        if (testPojo.getTargetDateTime() != null)
+            toUtcEpochMs(testPojo.getTargetDateTime()).map(commonBuilder::setTargetUtcDateTimeMs);
+        if (testPojo.getEstimatedDateTime() != null)
+            toUtcEpochMs(testPojo.getEstimatedDateTime()).map(commonBuilder::setEstimatedUtcDateTimeMs);
+        if (testPojo.getObservedDateTime() != null)
+            toUtcEpochMs(testPojo.getObservedDateTime()).map(commonBuilder::setObservedUtcDateTimeMs);
+        commonBuilder.setState(testPojo.getState());
+        commonBuilder.setType(testPojo.getType());
+        commonBuilder.setIsValidYesNo(testPojo.isIsValidYesNo());
 
         //All other timestamps are in local time but Pubtrans stores this field in UTC timezone
-        final long eventTimestampUtcMs = resultSet.getTimestamp("LastModifiedUTCDateTime").getTime();
-        commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);*/
+        final long eventTimestampUtcMs = getTimeFromTimeStampString(testPojo.getLastModifiedUTCDateTime()).get();
+        commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
         return commonBuilder.build();
     }
 
@@ -207,6 +207,18 @@ public abstract class PubtransTableHandler {
         final long eventTimestampUtcMs = resultSet.getTimestamp("LastModifiedUTCDateTime").getTime();
         commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
         return commonBuilder.build();
+    }
+
+    private Optional<Long> getTimeFromTimeStampString(String timeStampString) {
+        try {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
+            Date parsedDate = dateFormat.parse(timeStampString);
+            Timestamp timestamp = new java.sql.Timestamp(parsedDate.getTime());
+            return Optional.of(timestamp.getTime());
+        } catch (Exception e) {
+            log.error("Error in parsin timestamp", e);
+        }
+        return Optional.empty();
     }
 
     private Optional<String> getStopId(long jppId) {
