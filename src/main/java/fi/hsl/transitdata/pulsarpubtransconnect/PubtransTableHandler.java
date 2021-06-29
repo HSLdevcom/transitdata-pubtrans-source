@@ -85,11 +85,12 @@ public abstract class PubtransTableHandler {
 
             final String key = resultSet.getString("IsOnDatedVehicleJourneyId") + resultSet.getString("JourneyPatternSequenceNumber");
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
-            final long jppId = common.getIsTargetedAtJourneyPatternPointGid();
+            final long scheduledJppId = common.getIsTimetabledAtJourneyPatternPointGid();
+            final long targetedJppId = common.getIsTargetedAtJourneyPatternPointGid();
 
-            Optional<PubtransTableProtos.DOITripInfo> maybeTripInfo = getTripInfo(dvjId, jppId);
+            Optional<PubtransTableProtos.DOITripInfo> maybeTripInfo = getTripInfo(dvjId, scheduledJppId, targetedJppId);
             if (!maybeTripInfo.isPresent()) {
-                log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, jppId {}. Ignoring this update ", dvjId, jppId);
+                log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ", dvjId, scheduledJppId, targetedJppId);
             }
             else {
                 final byte[] data = createPayload(resultSet, common, maybeTripInfo.get());
@@ -156,14 +157,18 @@ public abstract class PubtransTableHandler {
         }
     }
 
-    protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long jppId) {
+    protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long scheduledJppId, long targetedJppId) {
         try {
-            Optional<String> maybeStopId = getStopId(jppId);
+            Optional<String> maybeScheduledStopId = getStopId(scheduledJppId);
+            Optional<String> maybeTargetedStopId = getStopId(targetedJppId);
             Optional<Map<String, String>> maybeTripInfoMap = getTripInfoFields(dvjId);
 
-            if (maybeStopId.isPresent() && maybeTripInfoMap.isPresent()) {
+            if (maybeScheduledStopId.isPresent() && maybeTripInfoMap.isPresent()) {
                 PubtransTableProtos.DOITripInfo.Builder builder = PubtransTableProtos.DOITripInfo.newBuilder();
-                builder.setStopId(maybeStopId.get());
+                
+                builder.setStopId(maybeScheduledStopId.get());
+                maybeTargetedStopId.ifPresent(builder::setTargetedStopId);
+
                 maybeTripInfoMap.ifPresent(map -> {
                     if (map.containsKey(TransitdataProperties.KEY_DIRECTION))
                         builder.setDirectionId(Integer.parseInt(map.get(TransitdataProperties.KEY_DIRECTION)));
@@ -178,7 +183,7 @@ public abstract class PubtransTableHandler {
                 return Optional.of(builder.build());
             }
             else {
-                log.error("Failed to get data from Redis for dvjId {}, jppId {}", dvjId, jppId);
+                log.error("Failed to get data from Redis for dvjId {}, timetabledJppId {}", dvjId, scheduledJppId);
                 return Optional.empty();
             }
         }
