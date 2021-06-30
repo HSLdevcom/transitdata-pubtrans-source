@@ -85,6 +85,7 @@ public class PubtransConnector {
             return true;
         synchronized (jedis) {
             String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
+            log.info("Cache last known update: {}", lastUpdate);
             if (lastUpdate != null) {
                 OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
                 return isCacheValid(dt, cacheMaxAgeInMins);
@@ -102,7 +103,8 @@ public class PubtransConnector {
         //Java8 does not support getting duration as minutes directly.
         final long secondsSinceUpdate = Duration.between(lastCacheUpdate, now).get(ChronoUnit.SECONDS);
         final long minutesSinceUpdate = Math.floorDiv(secondsSinceUpdate, 60);
-        log.debug("Current time " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
+        log.info("Minutes since last cache update: {}", minutesSinceUpdate);
+        log.info("Current time " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
 
