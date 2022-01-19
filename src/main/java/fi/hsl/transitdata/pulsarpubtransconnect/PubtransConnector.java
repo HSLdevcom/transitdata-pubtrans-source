@@ -14,6 +14,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
 
 public class PubtransConnector {
 
@@ -25,6 +26,7 @@ public class PubtransConnector {
     private String queryString;
     private boolean enableCacheCheck;
     private int cacheMaxAgeInMins;
+    private int queryTimeoutSecs;
 
     private PubtransTableHandler handler;
     private Jedis jedis;
@@ -45,6 +47,7 @@ public class PubtransConnector {
         connector.queryString = queryString(config);
         connector.enableCacheCheck = config.getBoolean("application.enableCacheTimestampCheck");
         connector.cacheMaxAgeInMins = config.getInt("application.cacheMaxAgeInMinutes");
+        connector.queryTimeoutSecs = (int)config.getDuration("pubtrans.queryTimeout", TimeUnit.SECONDS);
 
         log.info("Cache pre-condition enabled: " + connector.enableCacheCheck + " with max age "+ connector.cacheMaxAgeInMins);
 
@@ -117,6 +120,7 @@ public class PubtransConnector {
         try {
             statement = connection.prepareStatement(queryString);
             statement.setTimestamp(1, new java.sql.Timestamp(handler.getLastModifiedTimeStamp()));
+            statement.setQueryTimeout(queryTimeoutSecs);
             resultSet = statement.executeQuery();
             produceMessages(handler.handleResultSet(resultSet));
         }
