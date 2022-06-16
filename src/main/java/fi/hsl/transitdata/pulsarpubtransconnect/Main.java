@@ -1,9 +1,11 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
+import java.time.Duration;
 import java.util.Scanner;
 import java.io.File;
 import java.sql.*;
 import java.util.TimeZone;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +47,13 @@ public class Main {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
     }
 
+    //JDBC connection needs executor for network timeout
+    private static final Executor SQL_TIMEOUT_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
+        final Thread t = new Thread(runnable);
+        t.setDaemon(true);
+        return t;
+    });
+
     public static void main(String[] args) {
         log.info("Starting Pubtrans Source Application");
         try {
@@ -63,7 +72,10 @@ public class Main {
                 System.exit(1);
             }
 
+            final Duration networkTimeout = config.getDuration("pubtrans.networkTimeout");
+
             Connection connection = createPubtransConnection();
+            connection.setNetworkTimeout(SQL_TIMEOUT_EXECUTOR, (int) networkTimeout.toMillis());
 
             final PulsarApplication app = PulsarApplication.newInstance(config);
             PulsarApplicationContext context = app.getContext();
