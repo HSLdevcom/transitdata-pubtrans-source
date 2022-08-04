@@ -28,7 +28,7 @@
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
-            <version>6.2.2.jre8</version>
+            <version>10.2.1.jre11</version>
         </dependency>
         <!-- Needed for running tests which use PostgreSQL DB -->
         <dependency>
