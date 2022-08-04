@@ -146,6 +146,11 @@ public class Main {
 
         Connection connection = null;
         try {
+            if (connectionString.contains("postgresql")) {
+                //Load Postgres driver
+                Class.forName("org.postgresql.Driver");
+            }
+
             connection = DriverManager.getConnection(connectionString);
             log.info("Database connection created");
         } catch (SQLException e) {
