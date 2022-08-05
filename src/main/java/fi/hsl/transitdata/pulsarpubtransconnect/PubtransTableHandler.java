@@ -14,10 +14,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Queue;
+import java.util.*;
 
 public abstract class PubtransTableHandler {
     static final Logger log = LoggerFactory.getLogger(PubtransTableHandler.class);
@@ -31,7 +28,7 @@ public abstract class PubtransTableHandler {
     public PubtransTableHandler(PulsarApplicationContext context, TransitdataProperties.ProtobufSchema handlerSchema) {
         lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
         jedis = context.getJedis();
-        producer = context.getProducer();
+        producer = context.getSingleProducer();
         timeZone = context.getConfig().getString("pubtrans.timezone");
         schema = handlerSchema;
     }
@@ -70,18 +67,21 @@ public abstract class PubtransTableHandler {
 
     abstract protected TransitdataSchema getSchema();
 
-    public Queue<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException {
-
-        Queue<TypedMessageBuilder<byte[]>> messageBuilderQueue = new LinkedList<>();
+    public Collection<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException {
+        List<TypedMessageBuilder<byte[]>> messageBuilderQueue = new ArrayList<>();
 
         long tempTimeStamp = getLastModifiedTimeStamp();
 
+        int count = 0;
+
         while (resultSet.next()) {
+            count++;
+
             PubtransTableProtos.Common common = parseCommon(resultSet);
             final long eventTimestampUtcMs = common.getLastModifiedUtcDateTimeMs();
 
             final long delay = System.currentTimeMillis() - eventTimestampUtcMs;
-            log.debug("delay is {}", delay);
+            log.debug("Delay between current time and estimate publish time is {} ms", delay);
 
             final String key = resultSet.getString("IsOnDatedVehicleJourneyId") + resultSet.getString("JourneyPatternSequenceNumber");
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
@@ -89,10 +89,9 @@ public abstract class PubtransTableHandler {
             final long targetedJppId = common.getIsTargetedAtJourneyPatternPointGid();
 
             Optional<PubtransTableProtos.DOITripInfo> maybeTripInfo = getTripInfo(dvjId, scheduledJppId, targetedJppId);
-            if (!maybeTripInfo.isPresent()) {
+            if (maybeTripInfo.isEmpty()) {
                 log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ", dvjId, scheduledJppId, targetedJppId);
-            }
-            else {
+            } else {
                 final byte[] data = createPayload(resultSet, common, maybeTripInfo.get());
                 TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
                 messageBuilderQueue.add(msgBuilder);
@@ -103,6 +102,8 @@ public abstract class PubtransTableHandler {
                 tempTimeStamp = eventTimestampUtcMs;
             }
         }
+
+        log.info("{} rows processed from result set", count);
 
         setLastModifiedTimeStamp(tempTimeStamp);
 
@@ -145,14 +146,14 @@ public abstract class PubtransTableHandler {
 
     private Optional<String> getStopId(long jppId) {
         synchronized (jedis) {
-            String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + Long.toString(jppId);
+            String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + jppId;
             return Optional.ofNullable(jedis.get(stopIdKey));
         }
     }
 
     private Optional<Map<String, String>> getTripInfoFields(long dvjId) {
         synchronized (jedis) {
-            String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + Long.toString(dvjId);
+            String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + dvjId;
             return Optional.ofNullable(jedis.hgetAll(tripInfoKey));
         }
     }

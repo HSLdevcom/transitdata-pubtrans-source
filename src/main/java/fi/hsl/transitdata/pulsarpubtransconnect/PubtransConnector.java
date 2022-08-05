@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
@@ -41,7 +42,7 @@ public class PubtransConnector {
 
         connector.connection = connection;
         connector.jedis = context.getJedis();
-        connector.producer = context.getProducer();
+        connector.producer = context.getSingleProducer();
 
         Config config = context.getConfig();
         connector.queryString = queryString(config);
@@ -49,7 +50,7 @@ public class PubtransConnector {
         connector.cacheMaxAgeInMins = config.getInt("application.cacheMaxAgeInMinutes");
         connector.queryTimeoutSecs = (int)config.getDuration("pubtrans.queryTimeout", TimeUnit.SECONDS);
 
-        log.info("Cache pre-condition enabled: " + connector.enableCacheCheck + " with max age "+ connector.cacheMaxAgeInMins);
+        log.info("Cache pre-condition enabled: {} with max age {}", connector.enableCacheCheck, connector.cacheMaxAgeInMins);
 
         log.info("TableType: " + tableType);
         switch (tableType) {
@@ -69,18 +70,16 @@ public class PubtransConnector {
         String longName = config.getString("pubtrans.longName");
         String shortName = config.getString("pubtrans.shortName");
 
-        return new StringBuilder()
-                .append("SELECT * FROM ")
-                .append(longName)
-                .append(" AS ")
-                .append(shortName)
-                .append(" WHERE ")
-                .append(shortName).append(".LastModifiedUTCDateTime > ? ")
-                .append(" ORDER BY ")
-                .append(shortName).append(".LastModifiedUTCDateTime, ")
-                .append(shortName).append(".IsOnDatedVehicleJourneyId, ")
-                .append(shortName).append(".JourneyPatternSequenceNumber DESC")
-                .toString();
+        return "SELECT * FROM " +
+                longName +
+                " AS " +
+                shortName +
+                " WHERE " +
+                shortName + ".LastModifiedUTCDateTime > ? " +
+                " ORDER BY " +
+                shortName + ".LastModifiedUTCDateTime, " +
+                shortName + ".IsOnDatedVehicleJourneyId, " +
+                shortName + ".JourneyPatternSequenceNumber DESC";
     }
 
     public boolean checkPrecondition() {
@@ -107,7 +106,7 @@ public class PubtransConnector {
         final long secondsSinceUpdate = Duration.between(lastCacheUpdate, now).get(ChronoUnit.SECONDS);
         final long minutesSinceUpdate = Math.floorDiv(secondsSinceUpdate, 60);
         log.info("Minutes since last cache update: {}", minutesSinceUpdate);
-        log.info("Current time " + now.toString() + ", last update " + lastCacheUpdate.toString() + " => mins from prev update: " + minutesSinceUpdate);
+        log.info("Current time {}, last update {}} => mins from prev update: {}", now, lastCacheUpdate, minutesSinceUpdate);
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
 
@@ -121,21 +120,22 @@ public class PubtransConnector {
             statement = connection.prepareStatement(queryString);
             statement.setTimestamp(1, new java.sql.Timestamp(handler.getLastModifiedTimeStamp()));
             statement.setQueryTimeout(queryTimeoutSecs);
+
             resultSet = statement.executeQuery();
+
             produceMessages(handler.handleResultSet(resultSet));
-        }
-        finally {
-            if (resultSet != null)  try { resultSet.close(); } catch (Exception e) {log.error(e.getMessage());}
-            if (statement != null)  try { statement.close(); } catch (Exception e) {log.error(e.getMessage());}
+        } finally {
+            if (resultSet != null)  try { resultSet.close(); } catch (Exception e) { log.error("Exception while closing result set", e); }
+            if (statement != null)  try { statement.close(); } catch (Exception e) { log.error("Exception while closing statement", e); }
         }
     }
 
-    private void produceMessages(Queue<TypedMessageBuilder<byte[]>> messageBuilderQueue) throws PulsarClientException {
+    private void produceMessages(Collection<TypedMessageBuilder<byte[]>> messages) throws PulsarClientException {
         if (!producer.isConnected()) {
             throw new PulsarClientException("Producer is not connected");
         }
 
-        for (TypedMessageBuilder<byte[]> msg : messageBuilderQueue) {
+        for (TypedMessageBuilder<byte[]> msg : messages) {
             msg.sendAsync()
                 .exceptionally(throwable -> {
                     log.error("Failed to send Pulsar message", throwable);
@@ -146,8 +146,7 @@ public class PubtransConnector {
         //If we want to get Pulsar Exceptions to bubble up into this thread we need to do a sync flush for all pending messages.
         producer.flush();
 
-        log.info(messageBuilderQueue.size() + " messages written. Latest timestamp: " + handler.getLastModifiedTimeStamp() +
-                " Total query and processing time: " + (System.currentTimeMillis() - this.queryStartTime) + " ms");
+        log.info("{} messages written. Latest timestamp: {} Total query and processing time: {} ms", messages.size(), handler.getLastModifiedTimeStamp(), System.currentTimeMillis() - this.queryStartTime);
     }
 }
 
