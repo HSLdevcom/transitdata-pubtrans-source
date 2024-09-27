@@ -35,7 +35,7 @@ jobs:
           name: transitdata-pubtrans-source.jar
           path: target
       - name: Build and publish develop Docker image
-        uses: elgohr/Publish-Docker-Github-Action@master
+        uses: elgohr/Publish-Docker-Github-Action@v5
         with:
           name: hsldevcom/transitdata-pubtrans-source
           username: ${{ secrets.TRANSITDATA_DOCKERHUB_USER }}
@@ -54,7 +54,7 @@ jobs:
           name: transitdata-pubtrans-source.jar
           path: target
       - name: Build and publish release Docker image
-        uses: elgohr/Publish-Docker-Github-Action@master
+        uses: elgohr/Publish-Docker-Github-Action@v5
         with:
           name: hsldevcom/transitdata-pubtrans-source
           username: ${{ secrets.TRANSITDATA_DOCKERHUB_USER }}
