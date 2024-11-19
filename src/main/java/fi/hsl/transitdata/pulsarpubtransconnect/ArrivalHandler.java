@@ -42,7 +42,6 @@ public class ArrivalHandler extends PubtransTableHandler {
         arrivalBuilder.setSchemaVersion(arrivalBuilder.getSchemaVersion());
         arrivalBuilder.setCommon(common);
         arrivalBuilder.setTripInfo(tripInfo);
-        log.info("PAYLOAD: routeId=" + tripInfo.getRouteId() + ", operatingDay=" + tripInfo.getOperatingDay() + ", startTime=" + tripInfo.getStartTime());
         PubtransTableProtos.ROIArrival arrival = arrivalBuilder.build();
         return arrival.toByteArray();
     }
