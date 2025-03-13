@@ -118,12 +118,17 @@ public class PubtransConnector {
 
         try {
             statement = connection.prepareStatement(queryString);
-            statement.setTimestamp(1, new java.sql.Timestamp(handler.getLastModifiedTimeStamp()));
+            Timestamp lastModifiedTimestamp = new Timestamp(handler.getLastModifiedTimeStamp());
+            statement.setTimestamp(1, lastModifiedTimestamp);
             statement.setQueryTimeout(queryTimeoutSecs);
+            
+            log.info("Executing query. LastModifiedTimestamp: {}. QueryTimeoutSecs: {}", lastModifiedTimestamp, queryTimeoutSecs);
+            log.info("SQL: {}", queryString);
 
             resultSet = statement.executeQuery();
 
             produceMessages(handler.handleResultSet(resultSet));
+            log.info("RouteIds: {}", handler.getRouteIds());
         } finally {
             if (resultSet != null)  try { resultSet.close(); } catch (Exception e) { log.error("Exception while closing result set", e); }
             if (statement != null)  try { statement.close(); } catch (Exception e) { log.error("Exception while closing statement", e); }
