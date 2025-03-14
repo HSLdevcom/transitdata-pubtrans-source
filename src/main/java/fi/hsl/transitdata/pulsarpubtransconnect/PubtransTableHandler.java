@@ -24,7 +24,6 @@ public abstract class PubtransTableHandler {
     final TransitdataProperties.ProtobufSchema schema;
     private Jedis jedis;
     private final String timeZone;
-    private Set<String> routeIds = new HashSet<>();
 
     public PubtransTableHandler(PulsarApplicationContext context, TransitdataProperties.ProtobufSchema handlerSchema) {
         lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
@@ -32,10 +31,6 @@ public abstract class PubtransTableHandler {
         producer = context.getSingleProducer();
         timeZone = context.getConfig().getString("pubtrans.timezone");
         schema = handlerSchema;
-    }
-    
-    public Set<String> getRouteIds() {
-        return routeIds;
     }
 
     public long getLastModifiedTimeStamp() {
@@ -97,9 +92,7 @@ public abstract class PubtransTableHandler {
             if (maybeTripInfo.isEmpty()) {
                 log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ", dvjId, scheduledJppId, targetedJppId);
             } else {
-                PubtransTableProtos.DOITripInfo tripInfo = maybeTripInfo.get();
-                routeIds.add(tripInfo.getRouteId());
-                final byte[] data = createPayload(resultSet, common, tripInfo);
+                final byte[] data = createPayload(resultSet, common, maybeTripInfo.get());
                 TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
                 messageBuilderQueue.add(msgBuilder);
             }
