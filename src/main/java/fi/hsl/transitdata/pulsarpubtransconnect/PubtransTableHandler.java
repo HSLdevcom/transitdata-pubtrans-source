@@ -92,9 +92,15 @@ public abstract class PubtransTableHandler {
             if (maybeTripInfo.isEmpty()) {
                 log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ", dvjId, scheduledJppId, targetedJppId);
             } else {
-                final byte[] data = createPayload(resultSet, common, maybeTripInfo.get());
-                TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
-                messageBuilderQueue.add(msgBuilder);
+                PubtransTableProtos.DOITripInfo tripInfo = maybeTripInfo.get();
+                
+                if (tripInfo.getRouteId().startsWith("31M")) {
+                    log.info("Metro trip skipped. RouteId: {}", tripInfo.getRouteId());
+                } else {
+                    final byte[] data = createPayload(resultSet, common, tripInfo);
+                    TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
+                    messageBuilderQueue.add(msgBuilder);
+                }
             }
 
             //Update latest ts for next round
