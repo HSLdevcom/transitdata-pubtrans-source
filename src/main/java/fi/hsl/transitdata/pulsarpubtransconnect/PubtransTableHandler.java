@@ -24,12 +24,14 @@ public abstract class PubtransTableHandler {
     final TransitdataProperties.ProtobufSchema schema;
     private Jedis jedis;
     private final String timeZone;
+    private final boolean excludeMetroTrips;
 
     public PubtransTableHandler(PulsarApplicationContext context, TransitdataProperties.ProtobufSchema handlerSchema) {
         lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
         jedis = context.getJedis();
         producer = context.getSingleProducer();
         timeZone = context.getConfig().getString("pubtrans.timezone");
+        excludeMetroTrips = context.getConfig().getBoolean("pubtrans.excludeMetroTrips");
         schema = handlerSchema;
     }
 
@@ -94,7 +96,7 @@ public abstract class PubtransTableHandler {
             } else {
                 PubtransTableProtos.DOITripInfo tripInfo = maybeTripInfo.get();
                 
-                if (tripInfo.getRouteId().startsWith("31M")) {
+                if (excludeMetroTrips && tripInfo.getRouteId().startsWith("31M")) {
                     metroTripCount++;
                     metroRouteIds.add(tripInfo.getRouteId());
                 } else {
