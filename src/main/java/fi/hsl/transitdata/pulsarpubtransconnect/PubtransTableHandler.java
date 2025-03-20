@@ -31,7 +31,7 @@ public abstract class PubtransTableHandler {
         jedis = context.getJedis();
         producer = context.getSingleProducer();
         timeZone = context.getConfig().getString("pubtrans.timezone");
-        excludeMetroTrips = context.getConfig().getBoolean("pubtrans.excludeMetroTrips");
+        excludeMetroTrips = context.getConfig().getBoolean("application.excludeMetroTrips");
         schema = handlerSchema;
     }
 
