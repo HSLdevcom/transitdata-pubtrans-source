@@ -113,9 +113,11 @@ public abstract class PubtransTableHandler {
             }
         }
 
-        log.info("{} rows processed from result set. Skipped {} rows with metro trips (route ids: {})",
-                count, metroTripCount, metroRouteIds);
-
+        log.info("{} rows processed from result set.", count);
+        if (metroTripCount > 0) {
+            log.info("Skipped {} rows with metro trips (route ids: {})", metroTripCount, metroRouteIds);
+        }
+        
         setLastModifiedTimeStamp(tempTimeStamp);
 
         return messageBuilderQueue;
