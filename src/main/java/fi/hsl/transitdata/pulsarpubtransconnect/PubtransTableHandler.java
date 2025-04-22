@@ -79,6 +79,8 @@ public abstract class PubtransTableHandler {
         Set<String> metroRouteIds = new HashSet<>();
 
         while (resultSet.next()) {
+            count++;
+
             PubtransTableProtos.Common common = parseCommon(resultSet);
             final long eventTimestampUtcMs = common.getLastModifiedUtcDateTimeMs();
 
@@ -100,7 +102,6 @@ public abstract class PubtransTableHandler {
                     metroTripCount++;
                     metroRouteIds.add(tripInfo.getRouteId());
                 } else {
-                    count++;
                     final byte[] data = createPayload(resultSet, common, tripInfo);
                     TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
                     messageBuilderQueue.add(msgBuilder);
@@ -113,11 +114,9 @@ public abstract class PubtransTableHandler {
             }
         }
 
-        log.info("{} rows processed from result set.", count);
-        if (metroTripCount > 0) {
-            log.info("Skipped {} rows with metro trips (route ids: {})", metroTripCount, metroRouteIds);
-        }
-        
+        log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {})",
+                count, metroTripCount, metroRouteIds);
+
         setLastModifiedTimeStamp(tempTimeStamp);
 
         return messageBuilderQueue;
