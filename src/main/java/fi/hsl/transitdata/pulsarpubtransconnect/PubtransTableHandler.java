@@ -24,12 +24,14 @@ public abstract class PubtransTableHandler {
     final TransitdataProperties.ProtobufSchema schema;
     private Jedis jedis;
     private final String timeZone;
+    private final boolean excludeMetroTrips;
 
     public PubtransTableHandler(PulsarApplicationContext context, TransitdataProperties.ProtobufSchema handlerSchema) {
         lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
         jedis = context.getJedis();
         producer = context.getSingleProducer();
         timeZone = context.getConfig().getString("pubtrans.timezone");
+        excludeMetroTrips = context.getConfig().getBoolean("application.excludeMetroTrips");
         schema = handlerSchema;
     }
 
@@ -73,6 +75,8 @@ public abstract class PubtransTableHandler {
         long tempTimeStamp = getLastModifiedTimeStamp();
 
         int count = 0;
+        int metroTripCount = 0;
+        Set<String> metroRouteIds = new HashSet<>();
 
         while (resultSet.next()) {
             count++;
@@ -92,9 +96,16 @@ public abstract class PubtransTableHandler {
             if (maybeTripInfo.isEmpty()) {
                 log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ", dvjId, scheduledJppId, targetedJppId);
             } else {
-                final byte[] data = createPayload(resultSet, common, maybeTripInfo.get());
-                TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
-                messageBuilderQueue.add(msgBuilder);
+                PubtransTableProtos.DOITripInfo tripInfo = maybeTripInfo.get();
+                
+                if (excludeMetroTrips && tripInfo.getRouteId().startsWith("31M")) {
+                    metroTripCount++;
+                    metroRouteIds.add(tripInfo.getRouteId());
+                } else {
+                    final byte[] data = createPayload(resultSet, common, tripInfo);
+                    TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
+                    messageBuilderQueue.add(msgBuilder);
+                }
             }
 
             //Update latest ts for next round
@@ -103,7 +114,8 @@ public abstract class PubtransTableHandler {
             }
         }
 
-        log.info("{} rows processed from result set", count);
+        log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {})",
+                count, metroTripCount, metroRouteIds);
 
         setLastModifiedTimeStamp(tempTimeStamp);
 
