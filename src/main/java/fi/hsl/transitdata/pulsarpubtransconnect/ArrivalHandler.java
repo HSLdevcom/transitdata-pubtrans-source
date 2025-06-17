@@ -4,15 +4,11 @@ import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.TransitdataSchema;
 import fi.hsl.common.transitdata.proto.PubtransTableProtos;
-import org.apache.pulsar.client.api.Producer;
-import org.apache.pulsar.client.api.TypedMessageBuilder;
-import redis.clients.jedis.Jedis;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.LinkedList;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Queue;
 
 public class ArrivalHandler extends PubtransTableHandler {
 
@@ -35,9 +31,15 @@ public class ArrivalHandler extends PubtransTableHandler {
     protected TransitdataSchema getSchema() {
         return schema;
     }
-
+    
     @Override
-    protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException {
+    protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException {
+        return Map.of();
+    }
+    
+    @Override
+    protected byte[] createPayload(PubtransTableProtos.Common common, Map<String,
+            Long> columnToIdMap, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException {
         PubtransTableProtos.ROIArrival.Builder arrivalBuilder = PubtransTableProtos.ROIArrival.newBuilder();
         arrivalBuilder.setSchemaVersion(arrivalBuilder.getSchemaVersion());
         arrivalBuilder.setCommon(common);

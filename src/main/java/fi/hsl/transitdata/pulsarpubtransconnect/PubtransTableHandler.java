@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -62,14 +63,19 @@ public abstract class PubtransTableHandler {
             return Optional.empty();
         }
     }
+    
+    abstract protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException;
 
-    abstract protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException;
+    abstract protected byte[] createPayload(
+            PubtransTableProtos.Common common, Map<String, Long>
+                    columnToIdMap, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException;
 
     abstract protected String getTimetabledDateTimeColumnName();
 
     abstract protected TransitdataSchema getSchema();
 
-    public Collection<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException {
+    public Collection<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet, PreparedStatement statement)
+            throws SQLException {
         List<TypedMessageBuilder<byte[]>> messageBuilderQueue = new ArrayList<>();
 
         long tempTimeStamp = getLastModifiedTimeStamp();
@@ -88,6 +94,10 @@ public abstract class PubtransTableHandler {
             log.debug("Delay between current time and estimate publish time is {} ms", delay);
 
             final String key = resultSet.getString("IsOnDatedVehicleJourneyId") + resultSet.getString("JourneyPatternSequenceNumber");
+            final Map<String, Long> columnToIdMap = getTableColumnToIdMap(resultSet);
+            
+            PubtransConnector.closeQuery(resultSet, statement);
+            
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
             final long scheduledJppId = common.getIsTimetabledAtJourneyPatternPointGid();
             final long targetedJppId = common.getIsTargetedAtJourneyPatternPointGid();
@@ -102,7 +112,7 @@ public abstract class PubtransTableHandler {
                     metroTripCount++;
                     metroRouteIds.add(tripInfo.getRouteId());
                 } else {
-                    final byte[] data = createPayload(resultSet, common, tripInfo);
+                    final byte[] data = createPayload(common, columnToIdMap, tripInfo);
                     TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
                     messageBuilderQueue.add(msgBuilder);
                 }
