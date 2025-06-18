@@ -127,6 +127,11 @@ public class PubtransConnector {
         } finally {
             if (resultSet != null)  try { resultSet.close(); } catch (Exception e) { log.error("Exception while closing result set", e); }
             if (statement != null)  try { statement.close(); } catch (Exception e) { log.error("Exception while closing statement", e); }
+            long queryDuration = System.currentTimeMillis() - queryStartTime;
+            long secondsDuration = queryDuration / 1000;
+            long minutesDuration = secondsDuration / 60;
+            long remainingSecondsDuration = secondsDuration % 60;
+            log.info("Database query executed in {} min {} sec", minutesDuration, remainingSecondsDuration);
         }
     }
 
