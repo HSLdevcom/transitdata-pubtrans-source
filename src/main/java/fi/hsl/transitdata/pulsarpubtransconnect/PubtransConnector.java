@@ -149,7 +149,7 @@ public class PubtransConnector {
 
             resultSet = statement.executeQuery();
 
-            produceMessages(handler.handleResultSet(resultSet, statement));
+            produceMessages(handler.handleResultSet(resultSet, statement, queryStartTime));
         } catch (PulsarClientException | SQLException e) {
             closeQuery(resultSet, statement);
             throw e;
