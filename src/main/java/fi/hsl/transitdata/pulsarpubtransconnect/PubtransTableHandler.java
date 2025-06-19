@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -62,14 +63,20 @@ public abstract class PubtransTableHandler {
             return Optional.empty();
         }
     }
+    
+    abstract protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException;
 
-    abstract protected byte[] createPayload(ResultSet resultSet, PubtransTableProtos.Common common, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException;
+    abstract protected byte[] createPayload(
+            PubtransTableProtos.Common common, Map<String, Long>
+                    columnToIdMap, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException;
 
     abstract protected String getTimetabledDateTimeColumnName();
 
     abstract protected TransitdataSchema getSchema();
 
-    public Collection<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet) throws SQLException {
+    public Collection<TypedMessageBuilder<byte[]>> handleResultSet(
+            ResultSet resultSet, PreparedStatement statement, long queryStartTime)
+            throws SQLException {
         List<TypedMessageBuilder<byte[]>> messageBuilderQueue = new ArrayList<>();
 
         long tempTimeStamp = getLastModifiedTimeStamp();
@@ -77,7 +84,10 @@ public abstract class PubtransTableHandler {
         int count = 0;
         int metroTripCount = 0;
         Set<String> metroRouteIds = new HashSet<>();
-
+        long queryDuration = -1L;
+        long resultHandlerDuration = -1L;
+        long queryAndResultHandlerDuration = -1L;
+        
         while (resultSet.next()) {
             count++;
 
@@ -88,6 +98,12 @@ public abstract class PubtransTableHandler {
             log.debug("Delay between current time and estimate publish time is {} ms", delay);
 
             final String key = resultSet.getString("IsOnDatedVehicleJourneyId") + resultSet.getString("JourneyPatternSequenceNumber");
+            final Map<String, Long> columnToIdMap = getTableColumnToIdMap(resultSet);
+            
+            PubtransConnector.closeQuery(resultSet, statement);
+            queryDuration = System.currentTimeMillis() - queryStartTime;
+            
+            final long resultHandlerStartTime = System.currentTimeMillis();
             final long dvjId = common.getIsOnDatedVehicleJourneyId();
             final long scheduledJppId = common.getIsTimetabledAtJourneyPatternPointGid();
             final long targetedJppId = common.getIsTargetedAtJourneyPatternPointGid();
@@ -102,7 +118,7 @@ public abstract class PubtransTableHandler {
                     metroTripCount++;
                     metroRouteIds.add(tripInfo.getRouteId());
                 } else {
-                    final byte[] data = createPayload(resultSet, common, tripInfo);
+                    final byte[] data = createPayload(common, columnToIdMap, tripInfo);
                     TypedMessageBuilder<byte[]> msgBuilder = createMessage(key, eventTimestampUtcMs, dvjId, data, getSchema());
                     messageBuilderQueue.add(msgBuilder);
                 }
@@ -112,10 +128,14 @@ public abstract class PubtransTableHandler {
             if (eventTimestampUtcMs > tempTimeStamp) {
                 tempTimeStamp = eventTimestampUtcMs;
             }
+            resultHandlerDuration = System.currentTimeMillis() - resultHandlerStartTime;
+            queryAndResultHandlerDuration = System.currentTimeMillis() - queryStartTime;
         }
 
-        log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {})",
-                count, metroTripCount, metroRouteIds);
+        log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {}). "
+                        + "Operation took {} (db query took {}, handling results took {})",
+                count, metroTripCount, metroRouteIds,
+                getMinSec(queryAndResultHandlerDuration), getMinSec(queryDuration), getMinSec(resultHandlerDuration));
 
         setLastModifiedTimeStamp(tempTimeStamp);
 
@@ -154,6 +174,13 @@ public abstract class PubtransTableHandler {
         final long eventTimestampUtcMs = resultSet.getTimestamp("LastModifiedUTCDateTime").getTime();
         commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
         return commonBuilder.build();
+    }
+    
+    private String getMinSec(long durationMs) {
+        long seconds = durationMs / 1000;
+        long minutes = seconds / 60;
+        long remainingSeconds = seconds % 60;
+        return String.format("%d min %d sec", minutes, remainingSeconds);
     }
 
     private Optional<String> getStopId(long jppId) {
