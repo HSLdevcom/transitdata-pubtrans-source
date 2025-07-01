@@ -110,29 +110,24 @@ public class PubtransConnector {
     }
     
     static void closeQuery(final ResultSet resultSet, final Statement statement) {
-        if (resultSet == null && statement == null) {
-            log.warn("ResultSet and Statement are null, nothing to close. {}");
-            return;
-        }
-        try {
-            if (resultSet.isClosed() && statement.isClosed()) {
-                log.info("ResultSet and Statement already closed, nothing to close. {}");
-                return;
+        if (resultSet != null) {
+            try {
+                resultSet.close();
+                log.debug("ResultSet closed.");
+            } catch (SQLException e) {
+                log.error("Failed to close ResultSet", e);
             }
-        } catch (SQLException e) {
-            log.info("Error occured when trying to check if ResultSet and Statement are closed. {}");
         }
-        if (resultSet != null)  try {
-            resultSet.close();
-            log.info("ResultSet closed. {}");
-        } catch (Exception e) {
-            log.error("Failed to close ResultSet", e);
+        if (statement != null) {
+            try {
+                statement.close();
+                log.debug("Statement closed.");
+            } catch (SQLException e) {
+                log.error("Failed to close Statement", e);
+            }
         }
-        if (statement != null)  try {
-            statement.close();
-            log.info("Statement closed. {}");
-        } catch (Exception e) {
-            log.error("Failed to close Statement", e);
+        if (resultSet == null && statement == null) {
+            log.warn("ResultSet and Statement are null, nothing to close.");
         }
     }
 
