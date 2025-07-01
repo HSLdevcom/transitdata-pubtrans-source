@@ -147,10 +147,11 @@ public abstract class PubtransTableHandler {
             if (queryResultItem.eventTimestampUtcMs > tempTimeStamp) {
                 tempTimeStamp = queryResultItem.eventTimestampUtcMs;
             }
-            long endTime = System.currentTimeMillis();
-            resultHandlerDuration = endTime - queryEndTime;
-            queryAndResultHandlerDuration = endTime - queryStartTime;
         }
+        
+        long endTime = System.currentTimeMillis();
+        resultHandlerDuration = endTime - queryEndTime;
+        queryAndResultHandlerDuration = endTime - queryStartTime;
         
         log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {}). "
                         + "Operation took {} (db query took {}, handling results took {})",
