@@ -14,7 +14,6 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
-import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
 public class PubtransConnector {
@@ -109,6 +108,33 @@ public class PubtransConnector {
         log.info("Current time {}, last update {}} => mins from prev update: {}", now, lastCacheUpdate, minutesSinceUpdate);
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
+    
+    static void closeQuery(final ResultSet resultSet, final Statement statement) {
+        if (resultSet == null && statement == null) {
+            log.warn("ResultSet and Statement are null, nothing to close. {}");
+            return;
+        }
+        try {
+            if (resultSet.isClosed() && statement.isClosed()) {
+                log.info("ResultSet and Statement already closed, nothing to close. {}");
+                return;
+            }
+        } catch (SQLException e) {
+            log.info("Error occured when trying to check if ResultSet and Statement are closed. {}");
+        }
+        if (resultSet != null)  try {
+            resultSet.close();
+            log.info("ResultSet closed. {}");
+        } catch (Exception e) {
+            log.error("Failed to close ResultSet", e);
+        }
+        if (statement != null)  try {
+            statement.close();
+            log.info("Statement closed. {}");
+        } catch (Exception e) {
+            log.error("Failed to close Statement", e);
+        }
+    }
 
     public void queryAndProcessResults() throws SQLException, PulsarClientException {
 
@@ -122,16 +148,11 @@ public class PubtransConnector {
             statement.setQueryTimeout(queryTimeoutSecs);
 
             resultSet = statement.executeQuery();
-
-            produceMessages(handler.handleResultSet(resultSet));
-        } finally {
-            if (resultSet != null)  try { resultSet.close(); } catch (Exception e) { log.error("Exception while closing result set", e); }
-            if (statement != null)  try { statement.close(); } catch (Exception e) { log.error("Exception while closing statement", e); }
-            long queryDuration = System.currentTimeMillis() - queryStartTime;
-            long secondsDuration = queryDuration / 1000;
-            long minutesDuration = secondsDuration / 60;
-            long remainingSecondsDuration = secondsDuration % 60;
-            log.info("Database query executed in {} min {} sec", minutesDuration, remainingSecondsDuration);
+            
+            produceMessages(handler.handleResultSet(resultSet, statement, queryStartTime));
+        } catch (PulsarClientException | SQLException e) {
+            closeQuery(resultSet, statement);
+            throw e;
         }
     }
 
