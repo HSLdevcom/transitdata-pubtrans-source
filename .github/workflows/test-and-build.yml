@@ -79,11 +79,11 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           tags: aks-dev
-  build-optimize-docker-image:
+  build-feature-branch-docker-image:
     needs: test
     runs-on: ubuntu-latest
-    # Run only on feat/optimize-query-result-handling branch
-    if: github.ref == 'refs/heads/feat/optimize-query-result-handling'
+    # Run only on branches starting with feature/
+    if: startsWith(github.ref, 'refs/heads/feature/')
     steps:
       - uses: actions/checkout@v2
       - name: Download .jar file
@@ -91,7 +91,7 @@ jobs:
         with:
           name: transitdata-pubtrans-source.jar
           path: target
-      - name: Build and publish feat/optimize-query-result-handling Docker image
+      - name: Build and publish feature branch Docker image
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
           name: hsldevcom/transitdata-pubtrans-source
