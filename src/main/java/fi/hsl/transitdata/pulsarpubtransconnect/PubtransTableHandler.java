@@ -118,10 +118,10 @@ public abstract class PubtransTableHandler {
         }
         
         PubtransConnector.closeQuery(resultSet, statement);
-        queryDuration = System.currentTimeMillis() - queryStartTime;
+        long queryEndTime = System.currentTimeMillis();
+        queryDuration = queryEndTime - queryStartTime;
         
         for (QueryResultItem queryResultItem : queryResultItems) {
-            final long resultHandlerStartTime = System.currentTimeMillis();
             final long dvjId = queryResultItem.common.getIsOnDatedVehicleJourneyId();
             final long scheduledJppId = queryResultItem.common.getIsTimetabledAtJourneyPatternPointGid();
             final long targetedJppId = queryResultItem.common.getIsTargetedAtJourneyPatternPointGid();
@@ -147,8 +147,9 @@ public abstract class PubtransTableHandler {
             if (queryResultItem.eventTimestampUtcMs > tempTimeStamp) {
                 tempTimeStamp = queryResultItem.eventTimestampUtcMs;
             }
-            resultHandlerDuration = System.currentTimeMillis() - resultHandlerStartTime;
-            queryAndResultHandlerDuration = System.currentTimeMillis() - queryStartTime;
+            long endTime = System.currentTimeMillis();
+            resultHandlerDuration = endTime - queryEndTime;
+            queryAndResultHandlerDuration = endTime - queryStartTime;
         }
         
         log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {}). "
