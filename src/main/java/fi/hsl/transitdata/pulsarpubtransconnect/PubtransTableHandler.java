@@ -66,6 +66,18 @@ public abstract class PubtransTableHandler {
         }
     }
     
+    public static String getMinSec(long durationMs) {
+        long seconds = durationMs / 1000;
+        long minutes = seconds / 60;
+        long remainingSeconds = seconds % 60;
+        
+        if (minutes == 0 && remainingSeconds == 0) {
+            return String.format("%d ms", durationMs);
+        }
+        
+        return String.format("%d min %d sec", minutes, remainingSeconds);
+    }
+    
     abstract protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException;
 
     abstract protected byte[] createPayload(
@@ -181,13 +193,6 @@ public abstract class PubtransTableHandler {
         final long eventTimestampUtcMs = resultSet.getTimestamp("LastModifiedUTCDateTime").getTime();
         commonBuilder.setLastModifiedUtcDateTimeMs(eventTimestampUtcMs);
         return commonBuilder.build();
-    }
-    
-    private String getMinSec(long durationMs) {
-        long seconds = durationMs / 1000;
-        long minutes = seconds / 60;
-        long remainingSeconds = seconds % 60;
-        return String.format("%d min %d sec", minutes, remainingSeconds);
     }
 
     private Optional<String> getStopId(long jppId) {

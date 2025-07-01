@@ -39,5 +39,18 @@ public class PubtransTableHandlerTest {
         assertEquals(summerTime, summerTimeWithDaylightSavings);
         assertEquals(summerTimeWithDaylightSavings, winterTime + 1);
     }
-
+    
+    @Test
+    public void testConvertMillisecondsToMinutesAndSeconds() {
+        assertEquals("0 ms", PubtransTableHandler.getMinSec(0));
+        assertEquals("11 ms", PubtransTableHandler.getMinSec(11));
+        assertEquals("500 ms", PubtransTableHandler.getMinSec(500));
+        assertEquals("0 min 1 sec", PubtransTableHandler.getMinSec(1000));
+        assertEquals("0 min 59 sec", PubtransTableHandler.getMinSec(59000));
+        assertEquals("1 min 0 sec", PubtransTableHandler.getMinSec(60000));
+        assertEquals("1 min 1 sec", PubtransTableHandler.getMinSec(61000));
+        assertEquals("2 min 0 sec", PubtransTableHandler.getMinSec(120000));
+        assertEquals("2 min 1 sec", PubtransTableHandler.getMinSec(121000));
+        assertEquals("59 min 59 sec", PubtransTableHandler.getMinSec(3599000));
+    }
 }
