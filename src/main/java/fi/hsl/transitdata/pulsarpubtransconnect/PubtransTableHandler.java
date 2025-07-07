@@ -66,16 +66,8 @@ public abstract class PubtransTableHandler {
         }
     }
     
-    public static String getMinSec(long durationMs) {
-        long seconds = durationMs / 1000;
-        long minutes = seconds / 60;
-        long remainingSeconds = seconds % 60;
-        
-        if (minutes == 0 && remainingSeconds == 0) {
-            return String.format("%d ms", durationMs);
-        }
-        
-        return String.format("%d min %d sec", minutes, remainingSeconds);
+    public static float getSeconds(long durationMs) {
+        return durationMs / 1000.0f;
     }
     
     abstract protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException;
@@ -154,9 +146,9 @@ public abstract class PubtransTableHandler {
         queryAndResultHandlerDuration = endTime - queryStartTime;
         
         log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {}). "
-                        + "Operation took {} (db query took {}, handling results took {})",
+                        + "Operation took {} s (db query took {} s, handling results took {} s)",
                 count, metroTripCount, metroRouteIds,
-                getMinSec(queryAndResultHandlerDuration), getMinSec(queryDuration), getMinSec(resultHandlerDuration));
+                getSeconds(queryAndResultHandlerDuration), getSeconds(queryDuration), getSeconds(resultHandlerDuration));
         
         setLastModifiedTimeStamp(tempTimeStamp);
 

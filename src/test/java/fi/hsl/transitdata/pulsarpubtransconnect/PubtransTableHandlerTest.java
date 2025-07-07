@@ -5,9 +5,10 @@ import org.junit.Test;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class PubtransTableHandlerTest {
+    private static final double DELTA = 1e-15;
+    
     @Test
     public void testTimestampConversionInUTC() {
         final String timezone = "UTC";
@@ -41,16 +42,13 @@ public class PubtransTableHandlerTest {
     }
     
     @Test
-    public void testConvertMillisecondsToMinutesAndSeconds() {
-        assertEquals("0 ms", PubtransTableHandler.getMinSec(0));
-        assertEquals("11 ms", PubtransTableHandler.getMinSec(11));
-        assertEquals("500 ms", PubtransTableHandler.getMinSec(500));
-        assertEquals("0 min 1 sec", PubtransTableHandler.getMinSec(1000));
-        assertEquals("0 min 59 sec", PubtransTableHandler.getMinSec(59000));
-        assertEquals("1 min 0 sec", PubtransTableHandler.getMinSec(60000));
-        assertEquals("1 min 1 sec", PubtransTableHandler.getMinSec(61000));
-        assertEquals("2 min 0 sec", PubtransTableHandler.getMinSec(120000));
-        assertEquals("2 min 1 sec", PubtransTableHandler.getMinSec(121000));
-        assertEquals("59 min 59 sec", PubtransTableHandler.getMinSec(3599000));
+    public void testConvertMillisecondsSeconds() {
+        assertEquals(0.0f, PubtransTableHandler.getSeconds(0), DELTA);
+        assertEquals(0.011f, PubtransTableHandler.getSeconds(11), DELTA);
+        assertEquals(0.5f, PubtransTableHandler.getSeconds(500), DELTA);
+        assertEquals(0.6f, PubtransTableHandler.getSeconds(600), DELTA);
+        assertEquals(1.0f, PubtransTableHandler.getSeconds(1000), DELTA);
+        assertEquals(1.501f, PubtransTableHandler.getSeconds(1501), DELTA);
+        assertEquals(59.0f, PubtransTableHandler.getSeconds(59000), DELTA);
     }
 }
