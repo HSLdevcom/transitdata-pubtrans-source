@@ -1,19 +1,6 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.time.Duration;
-import java.util.Scanner;
-import java.io.File;
-import java.sql.*;
-import java.util.TimeZone;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import com.microsoft.sqlserver.jdbc.*;
+import com.microsoft.sqlserver.jdbc.SQLServerException;
 import com.typesafe.config.Config;
 import fi.hsl.common.config.ConfigParser;
 import fi.hsl.common.config.ConfigUtils;
@@ -22,7 +9,25 @@ import fi.hsl.common.pulsar.PulsarApplicationContext;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisSentinelPool;
 import redis.clients.jedis.exceptions.JedisException;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.util.TimeZone;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+
+import static fi.hsl.transitdata.pulsarpubtransconnect.Checks.checkEither;
+import static fi.hsl.transitdata.pulsarpubtransconnect.RedisClusterProperties.redisClusterProperties;
+import static redis.clients.jedis.Protocol.DEFAULT_DATABASE;
 
 public class Main {
 
@@ -80,41 +85,37 @@ public class Main {
             Connection connection = createPubtransConnection();
             connection.setNetworkTimeout(SQL_TIMEOUT_EXECUTOR, (int) networkTimeout.toMillis());
 
-            final PulsarApplication app = PulsarApplication.newInstance(config);
-            PulsarApplicationContext context = app.getContext();
+            final var app = PulsarApplication.newInstance(config);
+            final var context = app.getContext();
+            final var jedisExecutor = createJedisExecutor(context);
 
-            final PubtransConnector connector = PubtransConnector.newInstance(connection, context, type);
+            final var connector = PubtransConnector.newInstance(connection, context, type, jedisExecutor);
+            final var scheduler = Executors.newSingleThreadScheduledExecutor();
 
-            final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
             log.info("Starting scheduler");
 
             scheduler.scheduleAtFixedRate(() -> {
                 try {
-                    if(connector.checkPrecondition()) {
+                    if (connector.checkPrecondition()) {
                         connector.queryAndProcessResults();
-                    }
-                    else {
+                    } else {
                         log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
                     }
-                }
-                catch (SQLServerException sqlServerException) {
+                } catch (SQLServerException sqlServerException) {
                     // Occasionally (once every 2 hours?) the driver throws us out as a deadlock victim.
                     // There's no easy way to fix the root problem so lets just convert it to warning.
                     // More info: https://stackoverflow.com/questions/8390322/cause-of-a-process-being-a-deadlock-victim
                     if (sqlServerException.getErrorCode() == SQL_SERVER_ERROR_DEADLOCK_VICTIM) {
                         log.warn("SQL Server evicted us as deadlock victim. ignoring this for now...", sqlServerException);
-                    }
-                    else {
+                    } else {
                         log.error("SQL Server Unexpected error code, shutting down", sqlServerException);
                         log.warn("Driver Error code: {}", sqlServerException.getErrorCode());
                         closeApplication(app, scheduler);
                     }
-                }
-                catch (JedisException | SQLException | PulsarClientException connectionException) {
+                } catch (JedisException | SQLException | PulsarClientException connectionException) {
                     log.error("Connection problem, cannot recover so shutting down", connectionException);
                     closeApplication(app, scheduler);
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     log.error("Unknown error at Pubtrans scheduler, shutting down", e);
                     closeApplication(app, scheduler);
                 }
@@ -160,5 +161,72 @@ public class Main {
         }
 
         return connection;
+    }
+
+    private static JedisExecutor createJedisExecutor(PulsarApplicationContext context) {
+        final var config = context.getConfig();
+        final var redisEnabled = config.getBoolean("redis.enabled");
+        final var redisClusterEnabled = config.getBoolean("redisCluster.enabled");
+        checkEither(redisEnabled, redisClusterEnabled,
+                "Exactly one of 'redis.enabled' or 'redisCluster.enabled' must be true");
+
+        if (redisEnabled) {
+            final var jedis = context.getJedis();
+            return new JedisExecutor() {
+                @Override
+                public <T> T execute(Function<Jedis, T> action) {
+                    synchronized (jedis) {
+                        return action.apply(jedis);
+                    }
+                }
+            };
+        } else {
+            final var properties = redisClusterProperties(config);
+            final var pool = createJedisSentinelPool(properties);
+            final var jedisExecutor = new JedisExecutor() {
+                @Override
+                public <T> T execute(Function<Jedis, T> action) {
+                    try (final var jedis = pool.getResource()) {
+                        return action.apply(jedis);
+                    }
+                }
+            };
+
+            if (properties.healthCheck) {
+                context.getHealthServer()
+                        .addCheck(redisCustomHealthCheck(jedisExecutor));
+            }
+
+            return jedisExecutor;
+        }
+    }
+
+    private static JedisSentinelPool createJedisSentinelPool(RedisClusterProperties properties) {
+        return new JedisSentinelPool(
+                properties.masterName,
+                properties.sentinels,
+                properties.jedisPoolConfig(),
+                (int) properties.connectionTimeout.toMillis(),
+                (int) properties.socketTimeout.toMillis(),
+                null,
+                DEFAULT_DATABASE
+        );
+    }
+
+    private static BooleanSupplier redisCustomHealthCheck(JedisExecutor jedisExecutor) {
+        return () -> jedisExecutor.execute(jedis -> {
+            try {
+                final var maybePong = jedis.ping();
+                if (maybePong.equals("PONG")) {
+                    return true;
+                } else {
+                    log.error("jedis.ping() returned: {}", maybePong);
+                }
+            } catch (Exception e) {
+                log.error("Exception in custom health check for redis connection", e);
+            }
+
+            return false;
+        });
     }
 }

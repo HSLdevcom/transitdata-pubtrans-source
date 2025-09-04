@@ -8,7 +8,6 @@ import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Jedis;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -16,35 +15,31 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 
-public abstract class PubtransTableHandler {
-    static final Logger log = LoggerFactory.getLogger(PubtransTableHandler.class);
+import static fi.hsl.common.transitdata.TransitdataProperties.REDIS_PREFIX_DVJ;
+import static fi.hsl.common.transitdata.TransitdataProperties.REDIS_PREFIX_JPP;
+import static java.util.Optional.ofNullable;
 
-    private long lastModifiedTimeStamp;
-    Producer<byte[]> producer;
-    final TransitdataProperties.ProtobufSchema schema;
-    private Jedis jedis;
+public abstract class PubtransTableHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(PubtransTableHandler.class);
+
+    private final Producer<byte[]> producer;
+    private final JedisExecutor jedisExecutor;
     private final String timeZone;
     private final boolean excludeMetroTrips;
 
-    public PubtransTableHandler(PulsarApplicationContext context, TransitdataProperties.ProtobufSchema handlerSchema) {
-        lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
-        jedis = context.getJedis();
-        producer = context.getSingleProducer();
-        timeZone = context.getConfig().getString("pubtrans.timezone");
-        excludeMetroTrips = context.getConfig().getBoolean("application.excludeMetroTrips");
-        schema = handlerSchema;
+    private long lastModifiedTimeStamp;
+
+    public PubtransTableHandler(PulsarApplicationContext context, JedisExecutor jedisExecutor) {
+        this.jedisExecutor = jedisExecutor;
+        this.producer = context.getSingleProducer();
+        this.timeZone = context.getConfig().getString("pubtrans.timezone");
+        this.excludeMetroTrips = context.getConfig().getBoolean("application.excludeMetroTrips");
+        this.lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
     }
 
     public long getLastModifiedTimeStamp() {
         return this.lastModifiedTimeStamp;
-    }
-
-    public void setLastModifiedTimeStamp(long ts) {
-        this.lastModifiedTimeStamp = ts;
-    }
-
-    public Optional<Long> toUtcEpochMs(String localTimestamp) {
-        return toUtcEpochMs(localTimestamp, timeZone);
     }
 
     public static Optional<Long> toUtcEpochMs(String localTimestamp, String zoneId) {
@@ -56,8 +51,7 @@ public abstract class PubtransTableHandler {
             ZoneId zone = ZoneId.of(zoneId);
             long epochMs = dt.atZone(zone).toInstant().toEpochMilli();
             return Optional.of(epochMs);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to parse datetime from " + localTimestamp, e);
             return Optional.empty();
         }
@@ -97,7 +91,7 @@ public abstract class PubtransTableHandler {
                 log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ", dvjId, scheduledJppId, targetedJppId);
             } else {
                 PubtransTableProtos.DOITripInfo tripInfo = maybeTripInfo.get();
-                
+
                 if (excludeMetroTrips && tripInfo.getRouteId().startsWith("31M")) {
                     metroTripCount++;
                     metroRouteIds.add(tripInfo.getRouteId());
@@ -117,7 +111,7 @@ public abstract class PubtransTableHandler {
         log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {})",
                 count, metroTripCount, metroRouteIds);
 
-        setLastModifiedTimeStamp(tempTimeStamp);
+        this.lastModifiedTimeStamp = tempTimeStamp;
 
         return messageBuilderQueue;
     }
@@ -157,17 +151,19 @@ public abstract class PubtransTableHandler {
     }
 
     private Optional<String> getStopId(long jppId) {
-        synchronized (jedis) {
-            String stopIdKey = TransitdataProperties.REDIS_PREFIX_JPP + jppId;
-            return Optional.ofNullable(jedis.get(stopIdKey));
-        }
+        return jedisExecutor.execute(jedis -> {
+            final var stopIdKey = REDIS_PREFIX_JPP + jppId;
+
+            return ofNullable(jedis.get(stopIdKey));
+        });
     }
 
     private Optional<Map<String, String>> getTripInfoFields(long dvjId) {
-        synchronized (jedis) {
-            String tripInfoKey = TransitdataProperties.REDIS_PREFIX_DVJ + dvjId;
-            return Optional.ofNullable(jedis.hgetAll(tripInfoKey));
-        }
+        return jedisExecutor.execute(jedis -> {
+            final var tripInfoKey = REDIS_PREFIX_DVJ + dvjId;
+
+            return ofNullable(jedis.hgetAll(tripInfoKey));
+        });
     }
 
     protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long scheduledJppId, long targetedJppId) {
@@ -178,7 +174,7 @@ public abstract class PubtransTableHandler {
 
             if (maybeScheduledStopId.isPresent() && maybeTripInfoMap.isPresent()) {
                 PubtransTableProtos.DOITripInfo.Builder builder = PubtransTableProtos.DOITripInfo.newBuilder();
-                
+
                 builder.setStopId(maybeScheduledStopId.get());
                 maybeTargetedStopId.ifPresent(builder::setTargetedStopId);
 
@@ -194,13 +190,11 @@ public abstract class PubtransTableHandler {
                 });
                 builder.setDvjId(dvjId);
                 return Optional.of(builder.build());
-            }
-            else {
+            } else {
                 log.error("Failed to get data from Redis for dvjId {}, timetabledJppId {}", dvjId, scheduledJppId);
                 return Optional.empty();
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.warn("Failed to get Trip Info for dvj-id " + dvjId, e);
             return Optional.empty();
         }
@@ -214,5 +208,9 @@ public abstract class PubtransTableHandler {
                 .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, schema.schema.toString())
                 .property(TransitdataProperties.KEY_SCHEMA_VERSION, Integer.toString(schema.schemaVersion.get()))
                 .value(data);
+    }
+
+    private Optional<Long> toUtcEpochMs(String localTimestamp) {
+        return toUtcEpochMs(localTimestamp, timeZone);
     }
 }
