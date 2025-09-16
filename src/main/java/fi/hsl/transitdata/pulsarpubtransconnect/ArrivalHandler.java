@@ -15,7 +15,8 @@ public class ArrivalHandler extends PubtransTableHandler {
     static final TransitdataSchema schema;
     static {
         int defaultVersion = PubtransTableProtos.ROIArrival.newBuilder().getSchemaVersion();
-        schema = new TransitdataSchema(TransitdataProperties.ProtobufSchema.PubtransRoiArrival, Optional.of(defaultVersion));
+        schema = new TransitdataSchema(TransitdataProperties.ProtobufSchema.PubtransRoiArrival,
+                Optional.of(defaultVersion));
     }
 
     public ArrivalHandler(PulsarApplicationContext context) {
@@ -31,15 +32,15 @@ public class ArrivalHandler extends PubtransTableHandler {
     protected TransitdataSchema getSchema() {
         return schema;
     }
-    
+
     @Override
     protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException {
         return Map.of();
     }
 
     @Override
-    protected byte[] createPayload(PubtransTableProtos.Common common, Map<String,
-            Long> columnToIdMap, PubtransTableProtos.DOITripInfo tripInfo) throws SQLException {
+    protected byte[] createPayload(PubtransTableProtos.Common common, Map<String, Long> columnToIdMap,
+            PubtransTableProtos.DOITripInfo tripInfo) throws SQLException {
         PubtransTableProtos.ROIArrival.Builder arrivalBuilder = PubtransTableProtos.ROIArrival.newBuilder();
         arrivalBuilder.setSchemaVersion(arrivalBuilder.getSchemaVersion());
         arrivalBuilder.setCommon(common);

@@ -1,13 +1,14 @@
 package fi.hsl.transitdata.pulsarpubtransconnect;
 
 public enum PubtransTableType {
-    ROI_ARRIVAL,
-    ROI_DEPARTURE;
+    ROI_ARRIVAL, ROI_DEPARTURE;
 
     public String toString() {
         switch (this) {
-            case ROI_ARRIVAL: return "ptroiarrival";
-            case ROI_DEPARTURE: return "ptroideparture";
+            case ROI_ARRIVAL :
+                return "ptroiarrival";
+            case ROI_DEPARTURE :
+                return "ptroideparture";
         }
         return "";
     }

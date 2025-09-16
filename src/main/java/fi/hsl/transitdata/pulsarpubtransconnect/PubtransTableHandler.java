@@ -27,7 +27,8 @@ public abstract class PubtransTableHandler {
     private final String timeZone;
     private final boolean excludeMetroTrips;
     private record QueryResultItem(PubtransTableProtos.Common common, String key, long eventTimestampUtcMs,
-                                   Map<String, Long> columnToIdMap) {};
+            Map<String, Long> columnToIdMap) {
+    };
 
     public PubtransTableHandler(PulsarApplicationContext context, TransitdataProperties.ProtobufSchema handlerSchema) {
         lastModifiedTimeStamp = (System.currentTimeMillis() - 5000);
@@ -59,30 +60,27 @@ public abstract class PubtransTableHandler {
             ZoneId zone = ZoneId.of(zoneId);
             long epochMs = dt.atZone(zone).toInstant().toEpochMilli();
             return Optional.of(epochMs);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to parse datetime from " + localTimestamp, e);
             return Optional.empty();
         }
     }
-    
+
     public static float getSeconds(long durationMs) {
         return durationMs / 1000.0f;
     }
-    
+
     abstract protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException;
 
-    abstract protected byte[] createPayload(
-            PubtransTableProtos.Common common, Map<String, Long> columnToIdMap,
+    abstract protected byte[] createPayload(PubtransTableProtos.Common common, Map<String, Long> columnToIdMap,
             PubtransTableProtos.DOITripInfo tripInfo) throws SQLException;
 
     abstract protected String getTimetabledDateTimeColumnName();
 
     abstract protected TransitdataSchema getSchema();
 
-    public Collection<TypedMessageBuilder<byte[]>> handleResultSet(
-            ResultSet resultSet, PreparedStatement statement, long queryStartTime)
-            throws SQLException {
+    public Collection<TypedMessageBuilder<byte[]>> handleResultSet(ResultSet resultSet, PreparedStatement statement,
+            long queryStartTime) throws SQLException {
         List<TypedMessageBuilder<byte[]>> messageBuilderQueue = new ArrayList<>();
 
         long tempTimeStamp = getLastModifiedTimeStamp();
@@ -97,22 +95,23 @@ public abstract class PubtransTableHandler {
 
         while (resultSet.next()) {
             count++;
-            
+
             PubtransTableProtos.Common common = parseCommon(resultSet);
             final long eventTimestampUtcMs = common.getLastModifiedUtcDateTimeMs();
-            
+
             final long delay = System.currentTimeMillis() - eventTimestampUtcMs;
             log.debug("Delay between current time and estimate publish time is {} ms", delay);
-            
-            final String key = resultSet.getString("IsOnDatedVehicleJourneyId") + resultSet.getString("JourneyPatternSequenceNumber");
+
+            final String key = resultSet.getString("IsOnDatedVehicleJourneyId")
+                    + resultSet.getString("JourneyPatternSequenceNumber");
             final Map<String, Long> columnToIdMap = getTableColumnToIdMap(resultSet);
             queryResultItems.add(new QueryResultItem(common, key, eventTimestampUtcMs, columnToIdMap));
         }
-        
+
         PubtransConnector.closeQuery(resultSet, statement);
         long queryEndTime = System.currentTimeMillis();
         queryDuration = queryEndTime - queryStartTime;
-        
+
         for (QueryResultItem queryResultItem : queryResultItems) {
             final long dvjId = queryResultItem.common.getIsOnDatedVehicleJourneyId();
             final long scheduledJppId = queryResultItem.common.getIsTimetabledAtJourneyPatternPointGid();
@@ -120,10 +119,12 @@ public abstract class PubtransTableHandler {
 
             Optional<PubtransTableProtos.DOITripInfo> maybeTripInfo = getTripInfo(dvjId, scheduledJppId, targetedJppId);
             if (maybeTripInfo.isEmpty()) {
-                log.warn("Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ", dvjId, scheduledJppId, targetedJppId);
+                log.warn(
+                        "Could not find valid DOITripInfo from Redis for dvjId {}, timetabledJppId {}, targetedJppId {}. Ignoring this update ",
+                        dvjId, scheduledJppId, targetedJppId);
             } else {
                 PubtransTableProtos.DOITripInfo tripInfo = maybeTripInfo.get();
-                
+
                 if (excludeMetroTrips && tripInfo.getRouteId().startsWith("31M")) {
                     metroTripCount++;
                     metroRouteIds.add(tripInfo.getRouteId());
@@ -140,16 +141,17 @@ public abstract class PubtransTableHandler {
                 tempTimeStamp = queryResultItem.eventTimestampUtcMs;
             }
         }
-        
+
         long endTime = System.currentTimeMillis();
         resultHandlerDuration = endTime - queryEndTime;
         queryAndResultHandlerDuration = endTime - queryStartTime;
-        
-        log.info("{} rows processed from the result set. {} rows skipped with metro trips (route ids: {}). "
+
+        log.info(
+                "{} rows processed from the result set. {} rows skipped with metro trips (route ids: {}). "
                         + "Operation took {} s (db query took {} s, handling results took {} s)",
-                count, metroTripCount, metroRouteIds,
-                getSeconds(queryAndResultHandlerDuration), getSeconds(queryDuration), getSeconds(resultHandlerDuration));
-        
+                count, metroTripCount, metroRouteIds, getSeconds(queryAndResultHandlerDuration),
+                getSeconds(queryDuration), getSeconds(resultHandlerDuration));
+
         setLastModifiedTimeStamp(tempTimeStamp);
 
         return messageBuilderQueue;
@@ -165,14 +167,18 @@ public abstract class PubtransTableHandler {
         if (resultSet.getBytes("IsOnMonitoredVehicleJourneyId") != null)
             commonBuilder.setIsOnMonitoredVehicleJourneyId(resultSet.getLong("IsOnMonitoredVehicleJourneyId"));
         commonBuilder.setJourneyPatternSequenceNumber(resultSet.getInt("JourneyPatternSequenceNumber"));
-        commonBuilder.setIsTimetabledAtJourneyPatternPointGid(resultSet.getLong("IsTimetabledAtJourneyPatternPointGid"));
+        commonBuilder
+                .setIsTimetabledAtJourneyPatternPointGid(resultSet.getLong("IsTimetabledAtJourneyPatternPointGid"));
         commonBuilder.setVisitCountNumber(resultSet.getInt("VisitCountNumber"));
         if (resultSet.getBytes("IsTargetedAtJourneyPatternPointGid") != null)
-            commonBuilder.setIsTargetedAtJourneyPatternPointGid(resultSet.getLong("IsTargetedAtJourneyPatternPointGid"));
+            commonBuilder
+                    .setIsTargetedAtJourneyPatternPointGid(resultSet.getLong("IsTargetedAtJourneyPatternPointGid"));
         if (resultSet.getBytes("WasObservedAtJourneyPatternPointGid") != null)
-            commonBuilder.setWasObservedAtJourneyPatternPointGid(resultSet.getLong("WasObservedAtJourneyPatternPointGid"));
+            commonBuilder
+                    .setWasObservedAtJourneyPatternPointGid(resultSet.getLong("WasObservedAtJourneyPatternPointGid"));
         if (resultSet.getBytes(getTimetabledDateTimeColumnName()) != null)
-            toUtcEpochMs(resultSet.getString(getTimetabledDateTimeColumnName())).map(commonBuilder::setTimetabledLatestUtcDateTimeMs);
+            toUtcEpochMs(resultSet.getString(getTimetabledDateTimeColumnName()))
+                    .map(commonBuilder::setTimetabledLatestUtcDateTimeMs);
         if (resultSet.getBytes("TargetDateTime") != null)
             toUtcEpochMs(resultSet.getString("TargetDateTime")).map(commonBuilder::setTargetUtcDateTimeMs);
         if (resultSet.getBytes("EstimatedDateTime") != null)
@@ -203,7 +209,8 @@ public abstract class PubtransTableHandler {
         }
     }
 
-    protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long scheduledJppId, long targetedJppId) {
+    protected Optional<PubtransTableProtos.DOITripInfo> getTripInfo(long dvjId, long scheduledJppId,
+            long targetedJppId) {
         try {
             Optional<String> maybeScheduledStopId = getStopId(scheduledJppId);
             Optional<String> maybeTargetedStopId = getStopId(targetedJppId);
@@ -211,7 +218,7 @@ public abstract class PubtransTableHandler {
 
             if (maybeScheduledStopId.isPresent() && maybeTripInfoMap.isPresent()) {
                 PubtransTableProtos.DOITripInfo.Builder builder = PubtransTableProtos.DOITripInfo.newBuilder();
-                
+
                 builder.setStopId(maybeScheduledStopId.get());
                 maybeTargetedStopId.ifPresent(builder::setTargetedStopId);
 
@@ -227,22 +234,19 @@ public abstract class PubtransTableHandler {
                 });
                 builder.setDvjId(dvjId);
                 return Optional.of(builder.build());
-            }
-            else {
+            } else {
                 log.error("Failed to get data from Redis for dvjId {}, timetabledJppId {}", dvjId, scheduledJppId);
                 return Optional.empty();
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.warn("Failed to get Trip Info for dvj-id " + dvjId, e);
             return Optional.empty();
         }
     }
 
-    protected TypedMessageBuilder<byte[]> createMessage(String key, long eventTime, long dvjId, byte[] data, TransitdataSchema schema) {
-        return producer.newMessage()
-                .key(key)
-                .eventTime(eventTime)
+    protected TypedMessageBuilder<byte[]> createMessage(String key, long eventTime, long dvjId, byte[] data,
+            TransitdataSchema schema) {
+        return producer.newMessage().key(key).eventTime(eventTime)
                 .property(TransitdataProperties.KEY_DVJ_ID, Long.toString(dvjId))
                 .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, schema.schema.toString())
                 .property(TransitdataProperties.KEY_SCHEMA_VERSION, Integer.toString(schema.schemaVersion.get()))

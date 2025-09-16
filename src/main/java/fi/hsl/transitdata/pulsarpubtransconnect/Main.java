@@ -66,11 +66,9 @@ public class Main {
             Config config = null;
             if (type == PubtransTableType.ROI_ARRIVAL) {
                 config = ConfigParser.createConfig("arrival.conf");
-            }
-            else if (type == PubtransTableType.ROI_DEPARTURE) {
+            } else if (type == PubtransTableType.ROI_DEPARTURE) {
                 config = ConfigParser.createConfig("departure.conf");
-            }
-            else {
+            } else {
                 log.error("Failed to get table name from PT_TABLE-env variable, exiting application");
                 System.exit(1);
             }
@@ -90,37 +88,32 @@ public class Main {
 
             scheduler.scheduleAtFixedRate(() -> {
                 try {
-                    if(connector.checkPrecondition()) {
+                    if (connector.checkPrecondition()) {
                         connector.queryAndProcessResults();
-                    }
-                    else {
+                    } else {
                         log.error("Pubtrans poller precondition failed, skipping the current poll cycle.");
                     }
-                }
-                catch (SQLServerException sqlServerException) {
+                } catch (SQLServerException sqlServerException) {
                     // Occasionally (once every 2 hours?) the driver throws us out as a deadlock victim.
                     // There's no easy way to fix the root problem so lets just convert it to warning.
                     // More info: https://stackoverflow.com/questions/8390322/cause-of-a-process-being-a-deadlock-victim
                     if (sqlServerException.getErrorCode() == SQL_SERVER_ERROR_DEADLOCK_VICTIM) {
-                        log.warn("SQL Server evicted us as deadlock victim. ignoring this for now...", sqlServerException);
-                    }
-                    else {
+                        log.warn("SQL Server evicted us as deadlock victim. ignoring this for now...",
+                                sqlServerException);
+                    } else {
                         log.error("SQL Server Unexpected error code, shutting down", sqlServerException);
                         log.warn("Driver Error code: {}", sqlServerException.getErrorCode());
                         closeApplication(app, scheduler);
                     }
-                }
-                catch (JedisException | SQLException | PulsarClientException connectionException) {
+                } catch (JedisException | SQLException | PulsarClientException connectionException) {
                     log.error("Connection problem, cannot recover so shutting down", connectionException);
                     closeApplication(app, scheduler);
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     log.error("Unknown error at Pubtrans scheduler, shutting down", e);
                     closeApplication(app, scheduler);
                 }
             }, 0, 1, TimeUnit.SECONDS);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.error("Exception at Main", e);
         }
     }
