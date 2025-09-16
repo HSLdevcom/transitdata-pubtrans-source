@@ -2,13 +2,19 @@ package fi.hsl.transitdata.pulsarpubtransconnect;
 
 import com.typesafe.config.Config;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
+import fi.hsl.common.redis.RedisStore;
 import fi.hsl.common.transitdata.TransitdataProperties;
-import org.apache.pulsar.client.api.*;
+import org.apache.pulsar.client.api.Producer;
+import org.apache.pulsar.client.api.PulsarClientException;
+import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Jedis;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -29,7 +35,7 @@ public class PubtransConnector {
     private int queryTimeoutSecs;
 
     private PubtransTableHandler handler;
-    private Jedis jedis;
+    private RedisStore redisStore;
     private Producer<byte[]> producer;
 
     private PubtransConnector() {}
@@ -40,7 +46,7 @@ public class PubtransConnector {
         PubtransConnector connector = new PubtransConnector();
 
         connector.connection = connection;
-        connector.jedis = context.getJedis();
+        connector.redisStore = context.getRedisStore();
         connector.producer = context.getSingleProducer();
 
         Config config = context.getConfig();
@@ -84,17 +90,15 @@ public class PubtransConnector {
     public boolean checkPrecondition() {
         if (!enableCacheCheck)
             return true;
-        synchronized (jedis) {
-            String lastUpdate = jedis.get(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
-            log.info("Cache last known update: {}", lastUpdate);
-            if (lastUpdate != null) {
-                OffsetDateTime dt = OffsetDateTime.parse(lastUpdate, DateTimeFormatter.ISO_DATE_TIME);
-                return isCacheValid(dt, cacheMaxAgeInMins);
-            }
-            else {
-                log.error("Could not find last cache update timestamp from redis");
-                return false;
-            }
+
+        var lastUpdate = redisStore.getValue(TransitdataProperties.KEY_LAST_CACHE_UPDATE_TIMESTAMP);
+        log.info("Cache last known update: {}", lastUpdate);
+        if (lastUpdate.isPresent()) {
+            OffsetDateTime dt = OffsetDateTime.parse(lastUpdate.get(), DateTimeFormatter.ISO_DATE_TIME);
+            return isCacheValid(dt, cacheMaxAgeInMins);
+        } else {
+            log.error("Could not find last cache update timestamp from redis");
+            return false;
         }
     }
 
