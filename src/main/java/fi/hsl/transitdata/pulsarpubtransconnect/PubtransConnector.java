@@ -38,11 +38,11 @@ public class PubtransConnector {
     private RedisStore redisStore;
     private Producer<byte[]> producer;
 
-    private PubtransConnector() {}
+    private PubtransConnector() {
+    }
 
-    public static PubtransConnector newInstance(Connection connection,
-                                                PulsarApplicationContext context,
-                                                PubtransTableType tableType) throws RuntimeException {
+    public static PubtransConnector newInstance(Connection connection, PulsarApplicationContext context,
+            PubtransTableType tableType) throws RuntimeException {
         PubtransConnector connector = new PubtransConnector();
 
         connector.connection = connection;
@@ -53,19 +53,20 @@ public class PubtransConnector {
         connector.queryString = queryString(config);
         connector.enableCacheCheck = config.getBoolean("application.enableCacheTimestampCheck");
         connector.cacheMaxAgeInMins = config.getInt("application.cacheMaxAgeInMinutes");
-        connector.queryTimeoutSecs = (int)config.getDuration("pubtrans.queryTimeout", TimeUnit.SECONDS);
+        connector.queryTimeoutSecs = (int) config.getDuration("pubtrans.queryTimeout", TimeUnit.SECONDS);
 
-        log.info("Cache pre-condition enabled: {} with max age {}", connector.enableCacheCheck, connector.cacheMaxAgeInMins);
+        log.info("Cache pre-condition enabled: {} with max age {}", connector.enableCacheCheck,
+                connector.cacheMaxAgeInMins);
 
         log.info("TableType: " + tableType);
         switch (tableType) {
-            case ROI_ARRIVAL:
+            case ROI_ARRIVAL :
                 connector.handler = new ArrivalHandler(context);
                 break;
-            case ROI_DEPARTURE:
+            case ROI_DEPARTURE :
                 connector.handler = new DepartureHandler(context);
                 break;
-            default:
+            default :
                 throw new IllegalArgumentException("Table type not supported");
         }
         return connector;
@@ -75,16 +76,9 @@ public class PubtransConnector {
         String longName = config.getString("pubtrans.longName");
         String shortName = config.getString("pubtrans.shortName");
 
-        return "SELECT * FROM " +
-                longName +
-                " AS " +
-                shortName +
-                " WHERE " +
-                shortName + ".LastModifiedUTCDateTime > ? " +
-                " ORDER BY " +
-                shortName + ".LastModifiedUTCDateTime, " +
-                shortName + ".IsOnDatedVehicleJourneyId, " +
-                shortName + ".JourneyPatternSequenceNumber DESC";
+        return "SELECT * FROM " + longName + " AS " + shortName + " WHERE " + shortName
+                + ".LastModifiedUTCDateTime > ? " + " ORDER BY " + shortName + ".LastModifiedUTCDateTime, " + shortName
+                + ".IsOnDatedVehicleJourneyId, " + shortName + ".JourneyPatternSequenceNumber DESC";
     }
 
     public boolean checkPrecondition() {
@@ -95,10 +89,11 @@ public class PubtransConnector {
         log.info("Cache last known update: {}", lastUpdate);
         if (lastUpdate.isPresent()) {
             OffsetDateTime dt = OffsetDateTime.parse(lastUpdate.get(), DateTimeFormatter.ISO_DATE_TIME);
-            return isCacheValid(dt, cacheMaxAgeInMins);
-        } else {
-            log.error("Could not find last cache update timestamp from redis");
-            return false;
+                return isCacheValid(dt, cacheMaxAgeInMins);
+            } else {
+                log.error("Could not find last cache update timestamp from redis");
+                return false;
+
         }
     }
 
@@ -109,10 +104,11 @@ public class PubtransConnector {
         final long secondsSinceUpdate = Duration.between(lastCacheUpdate, now).get(ChronoUnit.SECONDS);
         final long minutesSinceUpdate = Math.floorDiv(secondsSinceUpdate, 60);
         log.info("Minutes since last cache update: {}", minutesSinceUpdate);
-        log.info("Current time {}, last update {}} => mins from prev update: {}", now, lastCacheUpdate, minutesSinceUpdate);
+        log.info("Current time {}, last update {}} => mins from prev update: {}", now, lastCacheUpdate,
+                minutesSinceUpdate);
         return minutesSinceUpdate <= cacheMaxAgeInMins;
     }
-    
+
     static void closeQuery(final ResultSet resultSet, final Statement statement) {
         if (resultSet != null) {
             try {
@@ -147,7 +143,7 @@ public class PubtransConnector {
             statement.setQueryTimeout(queryTimeoutSecs);
 
             resultSet = statement.executeQuery();
-            
+
             produceMessages(handler.handleResultSet(resultSet, statement, queryStartTime));
         } catch (PulsarClientException | SQLException e) {
             closeQuery(resultSet, statement);
@@ -161,17 +157,16 @@ public class PubtransConnector {
         }
 
         for (TypedMessageBuilder<byte[]> msg : messages) {
-            msg.sendAsync()
-                .exceptionally(throwable -> {
-                    log.error("Failed to send Pulsar message", throwable);
-                    return null;
-                });
+            msg.sendAsync().exceptionally(throwable -> {
+                log.error("Failed to send Pulsar message", throwable);
+                return null;
+            });
 
         }
         //If we want to get Pulsar Exceptions to bubble up into this thread we need to do a sync flush for all pending messages.
         producer.flush();
 
-        log.info("{} messages written. Latest timestamp: {} Total query and processing time: {} ms", messages.size(), handler.getLastModifiedTimeStamp(), System.currentTimeMillis() - this.queryStartTime);
+        log.info("{} messages written. Latest timestamp: {} Total query and processing time: {} ms", messages.size(),
+                handler.getLastModifiedTimeStamp(), System.currentTimeMillis() - this.queryStartTime);
     }
 }
-

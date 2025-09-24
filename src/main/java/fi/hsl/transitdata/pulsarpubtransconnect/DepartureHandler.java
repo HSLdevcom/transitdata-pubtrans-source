@@ -17,7 +17,8 @@ public class DepartureHandler extends PubtransTableHandler {
     private static final String COLUMN_HAS_SERVICE_REQUIREMENT_ID = "HasServiceRequirementId";
     static {
         int defaultVersion = PubtransTableProtos.ROIDeparture.newBuilder().getSchemaVersion();
-        schema = new TransitdataSchema(TransitdataProperties.ProtobufSchema.PubtransRoiDeparture, Optional.of(defaultVersion));
+        schema = new TransitdataSchema(TransitdataProperties.ProtobufSchema.PubtransRoiDeparture,
+                Optional.of(defaultVersion));
     }
 
     public DepartureHandler(PulsarApplicationContext context) {
@@ -33,7 +34,7 @@ public class DepartureHandler extends PubtransTableHandler {
     protected TransitdataSchema getSchema() {
         return schema;
     }
-    
+
     @Override
     protected Map<String, Long> getTableColumnToIdMap(ResultSet resultSet) throws SQLException {
         Map<String, Long> columnToIdMap = new HashMap<>();
@@ -41,7 +42,8 @@ public class DepartureHandler extends PubtransTableHandler {
             columnToIdMap.put(COLUMN_HAS_DESTINATION_DISPLAY_ID, resultSet.getLong(COLUMN_HAS_DESTINATION_DISPLAY_ID));
         }
         if (resultSet.getBytes(COLUMN_HAS_DESTINATION_STOP_AREA_GID) != null) {
-            columnToIdMap.put(COLUMN_HAS_DESTINATION_STOP_AREA_GID, resultSet.getLong(COLUMN_HAS_DESTINATION_STOP_AREA_GID));
+            columnToIdMap.put(COLUMN_HAS_DESTINATION_STOP_AREA_GID,
+                    resultSet.getLong(COLUMN_HAS_DESTINATION_STOP_AREA_GID));
         }
         if (resultSet.getBytes(COLUMN_HAS_SERVICE_REQUIREMENT_ID) != null) {
             columnToIdMap.put(COLUMN_HAS_SERVICE_REQUIREMENT_ID, resultSet.getLong(COLUMN_HAS_SERVICE_REQUIREMENT_ID));
@@ -51,7 +53,7 @@ public class DepartureHandler extends PubtransTableHandler {
 
     @Override
     protected byte[] createPayload(PubtransTableProtos.Common common, Map<String, Long> columnToIdMap,
-                                   PubtransTableProtos.DOITripInfo tripInfo) throws SQLException {
+            PubtransTableProtos.DOITripInfo tripInfo) throws SQLException {
         PubtransTableProtos.ROIDeparture.Builder departureBuilder = PubtransTableProtos.ROIDeparture.newBuilder();
         departureBuilder.setSchemaVersion(departureBuilder.getSchemaVersion());
         departureBuilder.setCommon(common);
