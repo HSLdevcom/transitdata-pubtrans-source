@@ -89,10 +89,10 @@ public class PubtransConnector {
         log.info("Cache last known update: {}", lastUpdate);
         if (lastUpdate.isPresent()) {
             OffsetDateTime dt = OffsetDateTime.parse(lastUpdate.get(), DateTimeFormatter.ISO_DATE_TIME);
-                return isCacheValid(dt, cacheMaxAgeInMins);
-            } else {
-                log.error("Could not find last cache update timestamp from redis");
-                return false;
+            return isCacheValid(dt, cacheMaxAgeInMins);
+        } else {
+            log.error("Could not find last cache update timestamp from redis");
+            return false;
 
         }
     }

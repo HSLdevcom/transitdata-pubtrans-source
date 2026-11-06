@@ -14,10 +14,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>24</maven.compiler.source>
-        <maven.compiler.target>24</maven.compiler.target>
-        <common.version>2.0.7</common.version>
-        <spotlessMavenPlugin.version>2.43.0</spotlessMavenPlugin.version>
+        <maven.compiler.release>25</maven.compiler.release>
+        <common.version>3.2.0</common.version>
+        <spotlessMavenPlugin.version>3.10.3</spotlessMavenPlugin.version>
         <googleJavaFormat.version>1.17.0</googleJavaFormat.version>
     </properties>
 
@@ -59,7 +58,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.1</version>
+                <version>3.6.0</version>
                 <executions>
                     <!-- Run shade goal on package phase -->
                     <execution>
@@ -103,11 +102,30 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.0</version>
+                <version>3.15.0</version>
                 <configuration>
-                    <source>24</source>
-                    <target>24</target>
+                    <release>${maven.compiler.release}</release>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.15</version>
+                <executions>
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
