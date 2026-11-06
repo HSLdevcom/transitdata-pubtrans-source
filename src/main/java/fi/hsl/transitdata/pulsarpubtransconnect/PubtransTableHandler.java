@@ -253,6 +253,8 @@ public abstract class PubtransTableHandler {
                 .property(TransitdataProperties.KEY_DVJ_ID, Long.toString(dvjId))
                 .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, schema.schema.toString())
                 .property(TransitdataProperties.KEY_SCHEMA_VERSION, Integer.toString(schema.schemaVersion.get()))
+                .property(TransitdataProperties.KEY_SOURCE_MESSAGE_TIMESTAMP_MS,
+                        Long.toString(System.currentTimeMillis()))
                 .value(data);
     }
 }
